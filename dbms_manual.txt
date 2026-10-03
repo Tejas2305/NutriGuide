@@ -1,0 +1,1545 @@
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 1.pdf ---
+Department of Computer Science & Engineering 
+ 
+ 
+DBMS Lab Assignment – 1 
+Name :- Parth Bhayani   PRN NO :- 26070122512  Batch :- B3 
+Title: Concept of E-R and EER Diagrams and Conversion to Relational Schema  
+Description: 
+The ER Model is intended as a description of real-world entities. Although it is 
+constructed in such a way as to allow easy translation to the relational schema model, this 
+is not an entirely trivial process. The ER diagram represents the conceptual level of 
+database design meanwhile the relational schema is the logical level for the database 
+design. We will be following the simple rules: 
+1. Entities and Simple Attributes: 
+ 
+An entity type within ER diagram is turned into a table. You may preferably keep the same name 
+for the entity or give it a sensible name but avoid DBMS reserved words as well as avoid the use 
+of special characters. Each attribute turns into a column (attribute) in the table. The key 
+attribute of the entity is the primary key of the table which is usually underlined. It can be 
+composite if required but can never be null. 
+ 
+It is highly recommended that every table should start with its primary key attribute 
+conventionally named as TablenameID. 
+ 
+Taking the following simple ER diagram: 
+ 
+ 
+ 
+The initial relational schema is expressed in the following format writing the table names with 
+the attributes list inside a parentheses as shown below for 
+Persons( personid , name, lastname, email ) 
+ 
+Persons and Phones are Tables. name, lastname, are Table Columns (Attributes). 
+personid is the primary key for the table : Person 
+2. Multi-Valued Attributes 
+ 
+A multi-valued attribute is usually represented with a double-line oval.
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+ 
+ 
+ 
+If you have a multi-valued attribute, take the attribute and turn it into a new entity or table of 
+its own. Then make a 1:N relationship between the new entity and the existing one. In simple 
+words. 1. Create a table for the attribute. 2. Add the primary (id) column of the parent entity as 
+a foreign key within the new table as shown below: 
+Persons( personid , name, lastname, email ) 
+Phones ( phoneid , personid, phone ) 
+personid within the table Phones is a foreign key referring to the personid of Persons 
+3. 1:1 Relationships 
+ 
+ 
+To keep it simple and even for better performances at data retrieval, I would personally 
+recommend using attributes to represent such relationship. For instance, let us consider the 
+case where the Person has or optionally has one wife. You can place the primary key of the wife 
+within the table of the Persons which we call in this case Foreign key as shown below. 
+Persons( personid , name, lastname, email , 
+wifeid ) Wife ( wifeid , name ) 
+ 
+Or vice versa to put the personid as a foreign key within the Wife table as shown below: 
+ 
+Persons( personid , name, lastname, 
+email ) Wife ( wifeid , name , personid) 
+For cases when the Person is not married i.e. has no wifeID, the attribute can set to NULL 
+4. 1:N Relationships 
+ 
+This is the tricky part ! For simplicity, use attributes in the same way as 1:1 relationship but we 
+have only one choice as opposed to two choices. For instance, the Person can have a House from
+
+Department of Computer Science & Engineering 
+ 
+ 
+zero to many , but a House can have only one Person. To represent such relationship the 
+personid as the Parent node must be placed within the Child table as a foreign key but not the 
+other way around as shown next: 
+ 
+ 
+ 
+ 
+It should convert to : 
+Persons( personid , name, lastname, email ) 
+House ( houseid , num , address, personid) 
+5. N:N Relationships 
+ 
+We normally use tables to express such type of relationship. This is the same for N − ary 
+relationship of ER diagrams. For instance, The Person can live or work in many countries. Also, 
+a country can have many people. To express this relationship within a relational schema we use 
+a separate table as shown below: 
+ 
+ 
+It should convert into : 
+ 
+Persons( personid , name, lastname, email)  
+Countries ( countryid , name, code)  
+HasRelat ( hasrelatid , personid , countryid)
+
+Department of Computer Science & Engineering 
+ 
+ 
+Relationship with attributes: 
+It is recommended to use table to represent them to keep the design tidy and clean 
+regardless of the cardinality of the relationship. 
+ 
+Practice Example 
+Convert the following ER diagram into database relational schema: 
+ 
+The relational schema for the ER Diagram is given below as: 
+ 
+Company( CompanyID , name , address ) 
+Staff( StaffID , dob , address , WifeID) 
+Child( ChildID , name , StaffID ) 
+Wife ( WifeID , name ) 
+Phone(PhoneID , phoneNumber , StaffID) 
+Task ( TaskID , description) 
+Work(WorkID , CompanyID , StaffID , since ) 
+Perform(PerformID , StaffID , TaskID ) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+Conversion of EER Model into Relational Model 
+The Extended Entity-Relationship Model is a more complex and high-level model that extends 
+an E-R diagram to include more types of abstraction, and to more clearly express constraints. 
+All of the concepts contained within an E-R diagram are included in the EE-R model, along with 
+additional concepts that cover more semantic information. These additional concepts include 
+generalization, specialization, and aggregation. 
+ 
+Generalization is a bottom-up approach in which two lower level entities combine to form a 
+higher level entity. In generalization, the higher level entity can also combine with other lower 
+level entity to make further higher level entity. 
+ 
+ 
+ 
+ 
+Specialization is opposite to Generalization. It is a top-down approach in which one higher 
+level entity can be broken down into two lower level entities. In specialization, some higher 
+level entities may not have lower-level entity sets at all. 
+ 
+ 
+Conversion process for Generalization/ Specialization into Relational Schema:
+
+Department of Computer Science & Engineering 
+ 
+ 
+● 
+Create tables for all higher-level entities. 
+● 
+Create tables for lower-level entities. 
+● 
+Add primary keys of higher-level entities in the table of lower-level entities. 
+● 
+In lower-level tables, add all other attributes of lower-level entities. 
+● 
+Declare primary key of higher-level table and the primary key for lower-level table. 
+● 
+Declare foreign key constraints. 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+ 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+ 
+ 
+One limitation on ER model is that it cannot express relationships among relationships. 
+ 
+Aggregation provides best solution for this purpose. Aggregation is a process when relation 
+between two entities is treated as a single entity. To represent relationship set involving 
+aggregation of R, treat the aggregation like an entity set whose primary key is the primary key 
+of the table for R. 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+ 
+ 
+ 
+Assignment 1 Lab Questions 
+Theory Questions 
+1. What are ER Diagrams? What is their significance in DBMS? 
+An Entity-Relationship (ER) Diagram is a graphical representation of the structure of a 
+database. It illustrates the entities (objects or things), attributes (properties), and 
+relationships between entities. ER diagrams are used during the database design process 
+to create a clear blueprint before implementing the database. 
+Main Components of an ER Diagram: 
+• 
+Entity: A real-world object or concept (e.g., Student, Employee, Book).  
+• 
+Attribute: A characteristic of an entity (e.g., Student_ID, Name, Age).  
+• 
+Relationship: The association between two or more entities (e.g., A Student enrolls in a Course).  
+Significance of ER Diagrams in DBMS 
+              ER diagrams are important in a Database Management System (DBMS) because they: 
+1. Provide a clear visual representation of the database structure.  
+2. Help in database design by identifying entities, attributes, and relationships before 
+implementation.  
+3. Reduce data redundancy by organizing data efficiently.  
+4. Improve communication between database designers, developers, and users through an easy-
+to-understand model.  
+5. Ensure data integrity by defining relationships and constraints clearly.  
+6. Simplify database maintenance and future modifications.  
+7. Serve as a blueprint for converting the conceptual design into relational database tables. 
+ 
+2. Explain the conversion process from ER to Relational. 
+The ER-to-Relational conversion is the process of transforming an Entity-Relationship 
+(ER) Diagram into a Relational Database Schema (tables). During this process, entities, 
+attributes, and relationships are converted into tables with appropriate keys and 
+constraints. 
+Steps in ER to Relational Conversion 
+1. Convert Strong Entities into Tables  
+o Create a separate table for each strong entity.  
+
+Department of Computer Science & Engineering 
+ 
+ 
+o Entity attributes become table columns.  
+o The primary key of the entity becomes the table's primary key.  
+2. Convert Weak Entities into Tables  
+o Create a separate table for each weak entity.  
+o Include the primary key of the owner entity as a foreign key.  
+o The combined key forms the primary key of the weak entity table.  
+3. Convert One-to-One (1:1) Relationships  
+o Add the primary key of one entity as a foreign key in the other entity's table.  
+o Place the foreign key in the table with total participation whenever possible.  
+4. Convert One-to-Many (1:M) Relationships  
+o Add the primary key of the "one" side entity as a foreign key in the "many" side entity's 
+table.  
+5. Convert Many-to-Many (M:N) Relationships  
+o Create a separate table for the relationship.  
+o Include the primary keys of both participating entities as foreign keys.  
+o The combination of these keys forms the primary key of the relationship table.  
+o Include any relationship attributes in this table.  
+6. Convert Multivalued Attributes  
+o Create a separate table for each multivalued attribute.  
+o Include the primary key of the parent entity as a foreign key.  
+7. Convert Composite Attributes  
+o Replace each composite attribute with its individual simple attributes.  
+o Store only the simple attributes in the table. 
+ 
+3. Explain the need of EER diagrams 
+Enhanced Entity-Relationship (EER) Diagrams are an extension of ER diagrams that provide 
+additional features to model complex database systems. They include concepts such as 
+specialization, generalization, inheritance, aggregation, and categories, making database 
+design more expressive and flexible. 
+Need of EER Diagrams 
+1. Model Complex Databases  
+o 
+EER diagrams can represent complex real-world scenarios that cannot be modeled effectively 
+using basic ER diagrams.  
+
+Department of Computer Science & Engineering 
+ 
+ 
+2. Support Inheritance  
+o 
+They allow entities to inherit attributes and relationships from parent entities through 
+specialization and generalization.  
+3. Reduce Data Redundancy  
+o 
+Common attributes can be stored in a superclass, avoiding duplication in multiple related entities.  
+4. Improve Database Design  
+o 
+They provide a more detailed and organized representation of the database structure.  
+5. Represent Real-World Relationships  
+o 
+EER diagrams accurately model hierarchical and complex relationships among entities.  
+6. Enhance Flexibility  
+o 
+They make it easier to modify and extend the database as requirements change.  
+7. Improve Clarity and Maintenance  
+o 
+A well-structured EER diagram is easier to understand, implement, and maintain. 
+ 
+4. Explain in detail Generalization, specialization and Aggregation and how do we convert 
+them into relational model 
+1. Generalization 
+Generalization is the process of combining two or more similar lower-level entities into a 
+single higher-level entity called a superclass. The superclass contains the common attributes 
+shared by all the lower-level entities. 
+Features: 
+• 
+It is a bottom-up approach.  
+• 
+Reduces data redundancy by storing common attributes in one place.  
+• 
+The superclass represents the generalized form of all subclasses.  
+Conversion into Relational Model 
+• 
+Create one table for the superclass containing the common attributes.  
+• 
+Create separate tables for each subclass containing their specific attributes.  
+• 
+The primary key of the superclass becomes the primary key as well as the foreign key in each 
+subclass table.  
+ 
+2. Specialization 
+Specialization is the process of dividing a higher-level entity into two or more lower-level 
+entities called subclasses based on specific characteristics. Each subclass inherits the 
+attributes of the superclass and may have additional attributes. 
+
+Department of Computer Science & Engineering 
+ 
+ 
+Features: 
+• 
+It is a top-down approach.  
+• 
+Supports inheritance of attributes and relationships.  
+• 
+Represents more specific entities from a general entity.  
+Conversion into Relational Model 
+• 
+Create one table for the superclass with all common attributes.  
+• 
+Create separate tables for each subclass with their unique attributes.  
+• 
+The primary key of the superclass is used as the primary key and foreign key in each subclass table.  
+ 
+3. Aggregation 
+Aggregation is a process in which a relationship between entities is treated as a higher-level 
+entity. It is used when a relationship itself participates in another relationship. 
+Features: 
+• 
+Represents a relationship as an entity.  
+• 
+Helps model complex real-world situations.  
+• 
+Simplifies the representation of higher-level relationships.  
+Conversion into Relational Model 
+• 
+Create tables for all participating entities.  
+• 
+Create a separate table for the aggregated relationship.  
+• 
+Include the primary keys of the participating entities as foreign keys in the aggregation table.  
+• 
+Add any attributes belonging to the aggregated relationship. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+Implementation Question (ER):- Draw an ER diagram for the following problem statements 
+and then convert them into database relational schema 
+1) CAR Rental Management 
+▪ 
+One customer can rent one car. 
+▪ 
+Each car has one manufacturer. 
+▪ 
+Each manufacturer can manufacture many types of cars. 
+▪ 
+Each car has its own maintenance schedule. 
+▪ 
+The revenue is generated based on number of days the car was rented. 
+▪ 
+The company has branches in 5 major cities. 
+▪ 
+The companies also have 5 employees per branch. 
+▪ 
+Initial rental request are handled by employees. 
+ 
+ER Diagram  
+ 
+                           Relational Schema :-  
+CUSTOMER(Customer_ID PK, Name, Phone) 
+ 
+BRANCH(Branch_ID PK, City) 
+ 
+EMPLOYEE(Employee_ID PK, Name, Branch_ID FK) 
+ 
+MANUFACTURER(Manu_ID PK, Name) 
+ 
+CAR(Car_ID PK, Model, RentPerDay, Branch_ID FK, Manu_ID FK) 
+ 
+RENTAL(Ren_ID PK, Start_Date, End_Date, No_of_Days, Total_Revenue, Customer_ID FK, 
+Employee_ID FK, Car_ID FK) 
+ 
+MAINTENANCE(Maint_ID PK, Date, Details, Car_ID FK) 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+                     Relational Model :-  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+                          
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+2) SIU Library Management System. 
+▪ 
+SIU library there can be individual institute libraries. 
+▪ 
+Library has members. 
+▪ 
+Library buys books of many publishers. 
+▪ 
+Sellers sell books of many publishers. 
+▪ 
+Library contains books 
+▪ 
+Books are written by one/many authors. 
+▪ 
+Authors’ books are published by publishers. 
+ 
+ 
+Relational Schema :-  
+• INSTITUTE(Institute_ID PK, Institute_Name, Address) 
+ 
+• LIBRARY(Library_ID PK, Library_Name, Location, Institute_ID FK) 
+ 
+• MEMBER(Member_ID PK, Member_Name, Address, Contact_No) 
+ 
+• AUTHOR(Author_ID PK, Author_Name, Email, Contact_No) 
+ 
+• PUBLISHER(Publisher_ID PK, Publisher_Name, Address) 
+ 
+• SELLER(Seller_ID PK, Seller_Name, Address, Publisher_ID FK) 
+ 
+• BOOK(Book_ID PK, ISBN, Title, Category, Price, Quantity, 
+• Library_ID FK, Author_ID FK, Publisher_ID FK, Seller_ID FK) 
+ 
+• BORROWS(Member_ID PK/FK, Book_ID PK/FK) 
+ 
+ 
+Relational Model :-  
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+3) Online Grocery Ordering System 
+▪ 
+Customer must orders one or more items. Each customer is identified by his/her 
+name. The postal address and email address of the customer are also required for 
+the correct placement of order. 
+▪ 
+Items have their name and price to be shown to the customers. 
+▪ 
+Shopping carts are created by the orders of the customers. 
+▪ 
+Shopping carts contain at least one item. 
+▪ 
+An order must have at least one requested item. 
+▪ 
+Not all items have customers. 
+▪ 
+Distinct companies produce distinct items which are differentiated by the 
+company’s name. 
+▪ 
+Payment must be made via credit cards. The payment process has to be done 
+after the credit card’s verification.  
+4)  
+ 
+ 
+Relational Schema :-  
+CUSTOMER( 
+    Customer_ID PK, 
+    Customer_Name, 
+    Postal_Address, 
+    Email 
+) 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+SHOPPING_CART( 
+    Cart_ID PK, 
+    Customer_ID FK 
+) 
+ 
+COMPANY( 
+    Company_ID PK, 
+    Company_Name 
+) 
+ 
+ITEM( 
+    Item_ID PK, 
+    Item_Name, 
+    Price, 
+    Company_ID FK 
+) 
+ 
+ORDER( 
+    Order_ID PK, 
+    Customer_ID FK, 
+    Cart_ID FK, 
+    Order_Date 
+) 
+ 
+PAYMENT( 
+    Payment_ID PK, 
+    Order_ID FK, 
+    Credit_Card_No, 
+    Payment_Status, 
+    Verification_Status 
+) 
+Relational Model :-  
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+ 
+Implementation Question (EER):- 
+Q.1 Draw the EER for SIU library management and convert into relational model. 
+Q.2 Convert following EER to relational model  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+Department of Computer Science & Engineering 
+ 
+ 
+ 
+Input and Output: 
+ 
+ 
+Conclusion: Thus we have implemented ER and EER diagrams. 
+
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 2.pdf ---
+DBMS LAB ASSIGNMENT – 2  
+Name :- Parth Bhayani   
+  
+Prn No :- 26070122512  
+  
+  
+ Batch:-B3  
+Title :- Introduc on to DDL and DML Commands and its execu on   
+Descrip on :-   
+Data defini on language defines the schema for the database by specifying en es and the rela onship 
+among them. In addi on to this, DDL even defines certain security constraints.The execu on of DDL 
+statements results in new tables which are stored in "system catalog" also called data dic onary or data 
+directory.  
+Data Manipula on Language is a language that provides a set of opera ons to support the basic data 
+manipula on opera ons on the data held in the databases. It allows users to insert, update, delete and 
+retrieve data from the database. Data manipula ons are applied at internal, conceptual and external levels 
+of schemas. However, the level of complexity at each schema level varies from one another.  
+Data Control Language statements control access to data and the database using statements such as 
+GRANT and REVOKE. A privilege can either be granted to a User with the help of GRANT statement. 
+The privileges assigned can be SELECT, ALTER, DELETE, EXECUTE, INSERT, INDEX etc. In addi 
+on to gran ng of privileges, you can also revoke (taken back) it by using REVOKE command.  
+ 
+
+  
+Assignment -2 Lab Ques ons  Sec on – 1 DDL Commands   
+Q1 :- Explain DDL commands and their syntax ?  
+Ans :-   
+DDL (Data Defini on Language)  
+DDL (Data Defini on Language) is a set of SQL commands used to create, modify, and delete the structure 
+of database objects such as databases and tables.  
+Common DDL Commands  
+1. CREATE  
+Purpose: Creates a new database, table, view, or other database object.  
+Syntax (Create Database): 
+CREATE DATABASE 
+database_name;  
+Example:  
+CREATE 
+DATABASE 
+LibraryDB; Syntax (Create 
+Table): CREATE TABLE 
+table_name (     column1 
+datatype,     column2 
+datatype,  
+    ...  
+);  
+Example:  
+CREATE TABLE STUDENT (  
+    Stuid INT PRIMARY KEY,  
+    Sname VARCHAR(50),  
+    Email VARCHAR(100)  
+
+);  
+  
+2. ALTER  
+Purpose: Modifies the structure of an exis ng table.  
+Syntax (Add Column):  
+ALTER TABLE table_name 
+ADD column_name datatype;  
+Example:  
+ALTER TABLE 
+STUDENT ADD Phone 
+VARCHAR(15); Syntax 
+(Modify Column):  
+ALTER TABLE table_name 
+MODIFY column_name 
+datatype;  
+Example:  
+ALTER TABLE STUDENT  
+MODIFY Sname VARCHAR(100);  
+Syntax (Drop Column):  
+ALTER TABLE table_name 
+DROP COLUMN 
+column_name;  
+Example:  
+ALTER TABLE STUDENT  
+DROP COLUMN Phone;  
+  
+3. DROP  
+Purpose: Permanently deletes a database or table along with all its data.  
+Syntax (Drop Table): 
+DROP TABLE 
+table_name; Example:  
+
+DROP TABLE STUDENT;  
+Syntax (Drop Database):  
+DROP DATABASE database_name;  
+Example:  
+DROP DATABASE LibraryDB;  
+  
+4. TRUNCATE  
+Purpose: Deletes all records from a table but keeps the table structure.  
+Syntax:  
+TRUNCATE TABLE table_name; 
+Example:  
+TRUNCATE TABLE STUDENT;  
+  
+5. RENAME  
+Purpose: Changes the name of a table.  
+Syntax:  
+RENAME TABLE old_table_name TO new_table_name;  
+Example:  
+RENAME TABLE STUDENT TO STUDENTS;  
+Q2 :- Create tables for the following rela onal model of library management. Apply constraints on the 
+columns and also alter the structure according to your requirements.  
+1. SIULIBRARY (Slid,lname,loca on,noo 
+ranches)  
+2. Ilibrary(Lid, lname, city, area, slid)  
+3. BOOKS(Bid, Bname, Price , Lid)  
+4. Noofcopies(bnid,bid,blid)  
+  
+5. AUTHOR(Aid, Aname,email,phoneno)  
+  
+6. Writes(Bid, Aid, pid)  
+  
+7. PUBLISHER(Pid, Pname)  
+8. SELLER(Sid, slname, city)  
+  
+
+9. DEPARTMENT (Dep d,deptname, Iname,lid)  
+  
+10. STUDENT(Stuid, Sname, email,memid dep d)  
+  
+11. STAFF(S d, stname, email, dep d,memid)  
+  
+12. PURCHASE(prid , lid, sid, pid, bid, quan ty ,date, totalcost)  
+  
+13. ISSUE(lssueid, memid, bid, lid, issuedate, returndate)  
+  
+14. SELLS (sid, bid,pid)  
+  
+15. Employee(eid,empname,email,salary,lid)  
+  
+16. A_specializa on(spec_id,spec_name,Aid)  
+  
+17. Member(emid,lid)  
+Sec on- 2 DML Command execu on  
+Q-1. Explain DML commands and their syntax.   
+Q-2. Insert 5 tuples in each of the created tables.  
+Q-2 Execute following queries on the library database  
+  
+1. Which institute libraries are located in pune city?  
+2. To which institute CS department belongs to?  
+  
+3. Find all the books whose price is between 800 to 12000?  
+4. Find out such employees who’s salaries are not greater than 50,000/-  
+  
+5. Find out such sellers who’s name end with “ta”  
+6. Find out such ins tute libraries where their area informa on is missing.  
+  
+7. Find out such staff members who’s name doesn’t starts with “A”  
+8. Find out such SIU libraries which have ins tute libraries located in Bangalore.  
+  
+
+9. Which students belong to civil department?  
+10. 
+Find out books which are wri en by “shru ” and published by Mcgraw hill ? Input and Output 
+:-   
+  
+
+  
+  
+
+  
+   
+ 
+ 
+
+ 
+
+ 
+
+ 
+ 
+ 
+
+ 
+
+ 
+
+
+ 
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+  
+  
+  
+
+  
+  
+  
+  
+  
+  
+ 
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+ 
+  
+  
+  
+  
+  
+   
+  
+  
+ 
+  
+  
+ 
+
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 3.pdf ---
+DBMS Lab Assignment – 3 
+Name :- Parth Bhayani  
+ 
+  Prn No :- 26070122512  
+ 
+ 
+Batch :- B3  
+Title: Implementation of SQL Functions 
+ 
+Description: 
+SQL Functions and its types 
+ 
+SQL provides many built-in functions to perform operations on data. These functions are useful 
+while performing mathematical calculations, string concatenations, sub-strings etc. 
+ 
+Four types of SQL functions: 
+Aggregate Functions 
+ 
+ 
+Date Functions 
+
+ 
+ 
+ 
+ 
+Numeric Functions 
+ 
+ 
+ 
+Char Functions 
+ 
+
+Assignment 3 Lab Questions 
+ 
+Perform following queries using SQL functions: 
+ 
+1. Find the cheapest book in the SIBM library. 
+ 
+ 
+2. Which library has the costliest book? 
+ 
+ 
+3. How many students from SIT issued the book? 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+4. What is the average cost of books in SITMN library? 
+ 
+ 
+5. What is the total cost of purchase made by SIT in the month of January to June? 
+ 
+ 
+6. How many books are written by “Shruti” 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+7. What is the costliest book published by “Pragati Book Store” 
+ 
+ 
+8. How many total copies of books do SIT has? 
+ 
+ 
+9. What is the average cost of books written by “Shivam Kapoor”? 
+ 
+ 
+10. How many books are sold by seller living in Pune? 
+ 
+ 
+ 
+ 
+ 
+
+ 
+11. Print the student name in capital who belongs to SSBS 
+ 
+ 
+12. Add two months to the issue date of book written by “Shivam Kapoor” 
+ 
+ 
+13. What was the last day of the month when Satish issued the book? 
+ 
+ 
+14. How many books are issued from January to march 2010 & 2020? 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+15. How many books have copies less than 5 available in the SIBM library? 
+ 
+ 
+Conclusion: Thus we have implemented SQL Functions 
+
+ 
+
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 4.pdf ---
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+DBMS Lab Assignment - 4 
+Title: Query formation using nested update, insert, and delete statements with the GROUP BY and 
+HAVING clauses, and SQL Views.  
+ 
+Description: 
+ 
+Aggregate functions are performed on the columns values. But if we want to divide values 
+stored in a single column in groups and then perform certain actions, then we have to use Group 
+By clause. 
+GROUP BY is use to group values from a column, and, if you wish, performs calculations on 
+that column. You can use COUNT, SUM, AVG, etc., functions on the grouped column. 
+ 
+ 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+ 
+ 
+Having Clause: - If we want to apply certain condition on which values should get included 
+in the group, we have to use the “Having Clause”. 
+ 
+ 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+ 
+Order By:- 
+ 
+Example: 
+ 
+ 
+We can also set a limit on the number of values which we want to be returned by the 
+execution of order by query. 
+ 
+ 
+SQL Views 
+In SQL, a view is a virtual table based on the result-set of an SQL statement. 
+A view contains rows and columns, just like a real table. The fields in a view are fields from 
+one or more real tables in the database.
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+ 
+ 
+You can add SQL functions, WHERE, and JOIN statements to a view and present the data as if 
+the data were coming from one single table. 
+CREATE VIEW Syntax 
+CREATE VIEW view_name AS 
+SELECT column1, column2, ... 
+FROM table_name 
+WHERE condition; 
+ 
+Note: A view always shows up-to-date data! The database engine recreates the data, using the 
+view's SQL statement, every time a user queries a view. 
+ 
+Types of Views 
+ 
+● Simple View: A view based on only a single table, which doesn't contain GROUP BY 
+clause and any functions. 
+● Complex View: A view based on multiple tables, which contain GROUP BY clause and 
+functions. 
+● Inline View: A view based on a subquery in FROM Clause, that subquery creates a 
+temporary table and simplifies the complex query. 
+● Materialized View: A view that stores the definition as well as data. It creates replicas 
+of data by storing it physically.
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+ 
+Assignment 4 Lab Questions 
+ 
+Perform following queries using Group by, having and Order By 
+1. Give library wise book details. 
+ 
+2. Give bookwise total copies which are available. 
+ 
+3. Which library has total copies more than 100? 
+ 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+4. Give institute wise department details. 
+ 
+5. Give citywise seller details. 
+ 
+6. Give author wise book details that have authored more than 2 books. 
+ 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+7. Give book details library wise whose price is less than 1000 
+ 
+8. Give department wise staff details. 
+ 
+9. How many books are issued library wise 
+ 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+10. Give purchase details publisher wise. 
+ 
+11. Display books in a descending order of their cost. 
+ 
+ 
+Perform a study assignment on SQL Views which should include following 
+details: 
+12. Need of SQL Views 
+• A View in SQL is a virtual table derived from a result-set of a database query. It 
+contains rows and columns just like a real table, but it does not store physical 
+data on the disk (except in materialized views). 
+• 
+Data Security & Privacy: Views allow administrators to restrict data access by 
+exposing only specific columns or rows to unauthorized users without revealing 
+the underlying base tables. 
+• 
+Simplification of Complex Queries: Complex logic, including multi-table JOINs, 
+subqueries, and aggregations, can be saved inside a view so users can query it 
+using simple SELECT statements. 
+• 
+Data Independence (Abstraction): Views provide a logical layer of abstraction. 
+If the schema of underlying tables changes (e.g., columns are renamed or split), 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+updating the view definition keeps external applications from breaking. 
+ 
+13. How to implement and use views in MYSQL. 
+Create view :- 
+CREATE VIEW view_name AS 
+SELECT column1, column2, column3 
+FROM table_name 
+WHERE condition; 
+Quering view :-  
+SELECT * FROM view_name 
+WHERE column1 = 'value'; 
+Modifying view :-  
+CREATE OR REPLACE VIEW view_name AS 
+SELECT column1, column2 
+FROM table_name 
+WHERE new_condition; 
+14. Write a view to select all books of SIT library whose cost is less than 
+1000/- 
+CREATE VIEW sit_books_under_1000 AS 
+SELECT  
+    b.Bid AS book_id, 
+    b.Bname AS book_title, 
+    b.Price AS price, 
+    l.Lname AS library_name 
+FROM BOOKS b 
+JOIN ilibrary l ON b.Lid = l.Lid 
+WHERE l.Lname = 'SIT'  
+  AND b.Price < 1000; 
+ 
+
+Name :- Parth Bhayani  
+               Prn No :- 26070122512  
+Batch :- B3  
+Output :-  
+SELECT * FROM sit_books_under_1000; 
+Conclusion: Thus we have implemented Query formation. 
+ 
+
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 5.pdf ---
+DBMS LAB ASSIGNMENT 5 
+SQL JOINS  
+Name :- Parth Bhayani  
+Prn No :- 26070122512  
+Batch :- B3 
+SQL JOINS are used to retrieve data from multiple tables. A SQL JOIN is performed whenever two or 
+more tables are listed in a SQL statement. 
+There are 4 different types of SQL joins: 
+● SQL INNER JOIN (sometimes called simple join) 
+● SQL LEFT OUTER JOIN (sometimes called LEFT JOIN) 
+● SQL RIGHT OUTER JOIN (sometimes called RIGHT JOIN) 
+● SQL FULL OUTER JOIN (sometimes called FULL JOIN) 
+
+Assignment 5 Lab Questions 
+Using SQL joins, obtain the following information from SIU Library Database 
+1. Students in the IT department. 
+ 
+ 
+2. Books in SIT library. 
+ 
+3. Books with less than 3 copies in SIT Library. 
+ 
+
+4. Sellers in the same city as SIT. 
+ 
+5. Sellers selling books to SIT. 
+ 
+6. Books authored by Brian Kernighan, and published by Tata McGraw Hill. 
+ 
+ 
+ 
+
+7. Books authored by Ken Thompson. 
+ 
+8. Books issued by Mayank. 
+ 
+9. Books issued by SLS staff. 
+ 
+ 
+
+10. Publisher that provides books to SSBS through College Book Store. 
+ 
+11. Institutes whose staff and students have issued book with bid 4444. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+12. Sellers selling to libraries in the same city. 
+ 
+13. Authors with books costing more than rs 500. 
+ 
+14. Which members have issued books that belongs to E&TC department of SITM. 
+ 
+ 
+ 
+ 
+
+15. List the books of SIT library 
+ 
+16. Which books are written by “ Ken Coel” 
+ 
+ 
+17. Find the staff members who’s salaries are less than atleast one employee 
+ 
+ 
+ 
+ 
+
+18. Find the books who’s price is greater than atleast one book in the library. 
+ 
+19. Find the employees who’s salary is greater than all the employees of CS department. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+20. Find such purchases who’s total cost is greater than all the purchases which are done 
+by “SIT library” 
+ 
+21. Find name of such SIU library which is located in Nashik and has Ilibrary named as 
+“SIOM library”(solve using exists) 
+ 
+ 
+ 
+ 
+ 
+
+22. Find such staff members who’s name starts with “S” and do not work for “CS” 
+department. (solve using not exists) 
+ 
+23. Which books are issued by student Shivani? 
+ 
+ 
+ 
+ 
+ 
+ 
+
+24. From which seller did SIT library purchases books of “Technical publications”? 
+ 
+ 
+25. Which books are issued by staff of SSLA law department? 
+ 
+26. Which sellers reside in the same city in which SCHC library resides? 
+ 
+27. Find out the publishers whose books are provided by the seller “pragati books store” to 
+SSBS library. 
+
+ 
+28. Which books are published by “Shivam Kapoor” with the publishing house Wiley 
+publications? 
+ 
+29. What are the purchase details of the SIBM library for the month of December? 
+ 
+30. Which institute does the member belong who have issued book number 453? 
+
+ 
+ 
+
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 6.pdf ---
+Name :- Parth Bhayani  
+            Prn No :- 26070122512  
+Batch :- B3 
+DBMS Lab Assignment - 6 
+PL/SQL Functions 
+ 
+What is a Function in PL/SQL? 
+A function is a named PL/SQL Block which is similar to a procedure. The major difference 
+between a procedure and a function is, a function must always return a value, but a procedure 
+may or may not return a value. 
+Syntax:- 
+ 
+ 
+▪ 
+Function-name specifies the name of the function. 
+ 
+▪ 
+[or replace] option allows the modification of an existing function. 
+ 
+▪ 
+The optional parameter list contains name, mode and types of the parameters. In 
+represents the value that will be passed from outside and out represents the 
+parameter that will be used to return a value outside of the procedure. 
+▪ 
+The function must contain a return statement. 
+ 
+▪ 
+The return clause specifies the data type you are going to return from the function. 
+ 
+▪ 
+Function-body contains the executable part. 
+ 
+▪ 
+The as keyword is used instead of the is keyword for creating a standalone function. 
+ 
+A subprogram is a program unit/module that performs a particular task. These subprograms 
+are combined to form larger programs. This is basically called the 'Modular design'. A 
+subprogram can be invoked by another subprogram or program which is called the calling 
+program. 
+A subprogram can be created: 
+● At schema level
+
+Name :- Parth Bhayani  
+            Prn No :- 26070122512  
+Batch :- B3 
+● Inside a package 
+● Inside a PL/SQL block 
+A schema level subprogram is a standalone subprogram. It is created with the CREATE 
+PROCEDURE or CREATE FUNCTION statement. It is stored in the database and can be deleted 
+with the DROP PROCEDURE or DROP FUNCTION statement. 
+ 
+A subprogram created inside a package is a packaged subprogram. It is stored in the database 
+and can be deleted only when the package is deleted with the DROP PACKAGE statement. 
+ 
+ 
+Assignment 6 Lab Questions 
+ 
+Implementation Questions: 
+1. Write a PL/SQL function to multiply 2 numbers 
+ 
+ 
+2. Write a PL/SQL function to find maximum of 2 numbers. 
+
+Name :- Parth Bhayani  
+            Prn No :- 26070122512  
+Batch :- B3 
+ 
+ 
+3. Write a PL/SQL function to define total number of books in SIU Library 
+ 
+ 
+
+Name :- Parth Bhayani  
+            Prn No :- 26070122512  
+Batch :- B3 
+4. Write a PL/SQL function to find average of 4 numbers. 
+ 
+ 
+5. Write a PL/SQL function to find factorial. 
+ 
+ 
+ 
+ 
+ 
+
+Name :- Parth Bhayani  
+            Prn No :- 26070122512  
+Batch :- B3 
+ 
+6. Write a PL/SQL function to find the name of the library which has the cheapest books. 
+ 
+ 
+7. Write a PL/SQL function to find total no. of books issued by SIT Staff. 
+ 
+Conclusion :-  
+We have successfully implementede pl/sql functions .  
+ 
+
+Name :- Parth Bhayani  
+            Prn No :- 26070122512  
+Batch :- B3 
+ 
+
+
+--- e:/Btech SIT/DBMS\26070122512 DBMS EXP 7.pdf ---
+Name : Parth Bhayani  
+PRN :26070122512 
+Batch : B3(2025-2029) 
+ 
+DBMS Lab Assignment – 7 
+SQL Procedures 
+PL/SQL subprograms are named PL/SQL blocks that can be invoked with a set of 
+parameters. PL/SQL provides two kinds of subprograms: 
+● Functions: these subprograms return a single value, mainly used to compute and 
+return a value. 
+● Procedures: these subprograms do not return a value directly, mainly used to 
+perform an action. 
+This chapter is going to cover important aspects of a PL/SQL procedure and we will cover 
+PL/SQL function in next chapter. 
+Parts of a PL/SQL Subprogram 
+Each PL/SQL subprogram has a name, and may have a parameter list. Like anonymous 
+PL/SQL blocks and, the named blocks a subprograms will also have following three parts: 
+ 
+ 
+Sr.No 
+. 
+Parts & Description 
+1 
+Declarative Part:- It is an optional part. However, the declarative part for a 
+subprogram does not start with the DECLARE keyword. It contains 
+declarations of types, cursors, constants, variables, exceptions, and nested 
+subprograms. These items are local to the subprogram and cease to exist when 
+the subprogram completes execution. 
+2 
+Executable Part: - This is a mandatory part and contains statements that 
+perform the designated action. 
+3 
+Exception-handling :- This is again an optional part. It contains the code that 
+handles run-time errors. 
+Creating a Procedure 
+A procedure is created with the CREATE OR REPLACE PROCEDURE statement. The 
+simplified syntax for the CREATE OR REPLACE PROCEDURE statement is as 
+follows: 
+
+ 
+ 
+ 
+ 
+Where, 
+ 
+● procedure-name specifies the name of the procedure. 
+● [OR REPLACE] option allows modifying an existing procedure. 
+● The optional parameter list contains name, mode and types of the parameters. IN 
+represents that value will be passed from outside and OUT represents that this 
+parameter will be used to return a value outside of the procedure. 
+● procedure-body contains the executable part. 
+● The AS keyword is used instead of the IS keyword for creating a standalone 
+procedure. 
+ 
+S. 
+N. 
+Parameter Mode & Description 
+1 
+IN :- An IN parameter lets you pass a value to the subprogram. It is a read-only 
+parameter. Inside the subprogram, an IN parameter acts like a constant. It cannot be 
+assigned a value. You can pass a constant, literal, initialized variable, or expression as 
+an IN parameter. You can also initialize it to a default value; however, in that case, it 
+is omitted from the subprogram call. It is the default mode of parameter passing. 
+Parameters are passed by reference. 
+2 
+OUT:- An OUT parameter returns a value to the calling program. Inside the 
+subprogram, an OUT parameter acts like a variable. You can change its value and 
+reference the value after assigning it. The actual parameter must be variable and it 
+is passed by value. 
+CREATE [OR REPLACE] PROCEDURE procedure_name 
+[(parameter_name [IN | OUT | IN OUT] type [, ...])] 
+{IS | AS} 
+BEGIN 
+< procedure_body > 
+
+3 
+IN OUT:- An IN OUT parameter passes an initial value to a subprogram and returns 
+an updated value to the caller. It can be assigned a value and its value can be read. 
+The actual parameter corresponding to an IN OUT formal parameter must be a 
+variable, not a constant or an expression. Formal parameter must be assigned a value. 
+Actual parameter is passed by value. 
+ 
+Assignment 7 Lab Questions 
+Implementation Questions: 
+ 
+ 
+1. Write a procedure to find details of books of a given library. 
+ 
+
+2. Write a procedure to find out total no. of books written by a particular author. 
+ 
+
+3. Write a procedure to increase price of books by 10% which are sold by a particular seller 
+to a particular library. 
+ 
+
+4. Write a procedure to count total number of publishers who are providing books to a 
+particular library. 
+ 
+
+5. Write a procedure to find the costliest and the cheapest books that a particular library has. 
+ 
+
+6. Write a procedure to update the price of books by 25%, which are written by a particular 
+author. 
+ 
+
+7. Write a procedure to provide total money spent by a particular library in purchasing books 
+in a particular month. 
+ 
+ 
+ 
+Conclusion: 
+ 
+Through this practical assignment, I gained hands-on experience in implementing stored 
+procedures in MySQL using both input (IN) and output (OUT) parameters. I observed how 
+centralizing operational logic within the database tier optimizes data manipulation tasks, 
+such as multi-table joins, conditional updates, and aggregate reporting. Additionally, 
+configuring procedural delimiters like // and working across relational constraints reinforced 
+the importance of procedural modularity and data integrity. 
+

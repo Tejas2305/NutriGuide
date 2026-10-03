@@ -1,0 +1,55 @@
+# =========================================================================
+# NutriGuide - .gitignore
+# =========================================================================
+
+# Maven Build Output
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Bundled local Maven and downloads
+apache-maven-3.9.6/
+*.zip
+
+# Compiled Java Classes
+*.class
+
+# Log files
+*.log
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.sublime-project
+*.sublime-workspace
+
+# OS Temporary & Cache files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.bak
+*.swp
+
+# Local scripts, temporary text files & batches
+powershell.bat
+output.txt
+CreateDB.java
+extract_dbms.py
+
+# Sensitive Database Configuration & Credentials (NEVER COMMIT SECRETS)
+src/main/resources/database.properties
+*.properties
+!src/main/resources/database.properties.example
+!.mvn/wrapper/maven-wrapper.properties

@@ -1,0 +1,6 @@
+# Database Configuration Properties (Template)
+# Copy this file to database.properties and modify these values to match your local MySQL setup
+db.url=jdbc:mysql://localhost:3306/nutriguide?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+db.user=root
+db.password=your_mysql_password_here
+db.driver=com.mysql.cj.jdbc.Driver
