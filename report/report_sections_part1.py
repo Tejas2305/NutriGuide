@@ -35,24 +35,24 @@ def get_front_matter_md():
 
 | Sr. No. | Title | Page No. |
 |:---|:---|:---|
-| 1. | **Introduction** | 1 |
-| 2. | **Problem Statement (Step 1)** | 2 |
-| 3. | **System Architecture and Modules** | 3–5 |
-| 4. | **Functional and Non-Functional Requirements (Step 2)** | 6–8 |
-| 5. | **Entities, Relationships and Attributes (Step 3)** | 9–11 |
-| 6. | **ER and EER Diagrams (Step 4)** | 12–14 |
-| 7. | **Relational Schema (Step 5)** | 15–17 |
-| 8. | **Anomalies (Step 6)** | 18–19 |
-| 9. | **Functional Dependencies (Step 7)** | 20–21 |
-| 10. | **Normalization (Step 8: 1NF to BCNF)** | 22–27 |
-| 11. | **Implementation of Tables in MySQL (Step 9)** | 28–34 |
-| 12. | **Functions, Procedures, Triggers and Queries (Step 10)** | 35–45 |
-| 13. | **Application of Codd's 12 Rules** | 46–48 |
-| 14. | **Individual Contributions (Step 11)** | 49 |
-| 15. | **Conclusion** | 50 |
-| 16. | **References** | 51 |
-| **App. A** | **Complete SQL Script (`NutriGuide.sql`)** | 52–60 |
-| **App. B** | **Stored Functions, Procedures, Views & Triggers** | 61–68 |
+| 1. | **Introduction** | 2 |
+| 2. | **Problem Statement (Step 1)** | 3 |
+| 3. | **System Architecture and Modules** | 4 |
+| 4. | **Functional and Non-Functional Requirements (Step 2)** | 5–6 |
+| 5. | **Entities, Relationships and Attributes (Step 3)** | 7–8 |
+| 6. | **ER and EER Diagrams (Step 4)** | 9–10 |
+| 7. | **Relational Schema (Step 5)** | 11 |
+| 8. | **Anomalies (Step 6)** | 12 |
+| 9. | **Functional Dependencies (Step 7)** | 13–14 |
+| 10. | **Normalization (Step 8: 1NF to BCNF)** | 15–17 |
+| 11. | **Implementation of Tables in MySQL (Step 9)** | 18–22 |
+| 12. | **Functions, Procedures, Triggers and Queries (Step 10)** | 23–30 |
+| 13. | **Application of Codd's 12 Rules** | 31–32 |
+| 14. | **Individual Contributions (Step 11)** | 33 |
+| 15. | **Conclusion** | 34 |
+| 16. | **References** | 35 |
+| **App. A** | **Complete SQL Script (`NutriGuide.sql`)** | 35–36 |
+| **App. B** | **Stored Functions, Procedures, Views & Triggers** | 37–38 |
 
 ---
 
