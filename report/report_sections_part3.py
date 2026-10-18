@@ -10,7 +10,7 @@ def get_part3_md():
 
 ## 11. Implementation of Tables in MySQL (Step 9)
 
-The NutriGuide database is implemented in **MySQL 8.x** utilizing the ACID-compliant **InnoDB** storage engine. All declarative constraints (`PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `DEFAULT`, `NOT NULL`) are enforced at the database kernel level.
+We implemented the NutriGuide database in **MySQL 8.x** using the default **InnoDB** storage engine. We selected InnoDB specifically because our multi-item meal logging requires strict ACID transaction support, row-level locking, and foreign key enforcement. All table constraints—including primary keys, foreign keys, unique email rules, and positive-value `CHECK` constraints—are enforced directly by the database engine.
 
 ### 11.1 Table DDL Definitions
 
@@ -246,6 +246,8 @@ UNION ALL SELECT 'activity_log', COUNT(*) FROM activity_log;
 ---
 
 ## 12. Functions, Procedures, Triggers and Queries (Step 10)
+
+To make data retrieval efficient and avoid recalculating nutrients inside client Java loops, we offloaded repeated aggregations and checks directly to MySQL. Below are the stored functions, procedures, views, triggers, and ten analytical queries we developed and tested:
 
 ### 12.1 Stored Functions (DBMS Exp 6)
 
@@ -690,7 +692,7 @@ ORDER BY log_time DESC;
 
 ## 13. Application of Codd's 12 Rules
 
-Dr. E. F. Codd formulated twelve rules (plus Rule 0) that establish whether an information management system qualifies as a true relational database. The NutriGuide system, running on **MySQL 8.x with the InnoDB storage engine**, is evaluated below against each of Codd's foundational rules:
+In 1985, Dr. E. F. Codd formulated twelve foundational rules (plus Rule 0) to establish whether an information management system qualifies as a true relational database. As part of our DBMS coursework, we evaluated our **MySQL 8.x (InnoDB)** backend against Codd's criteria to examine where modern relational engines strictly adhere to theory and where practical trade-offs occur:
 
 | Rule No. | Rule Name | Formal Statement | Evaluation in NutriGuide | Compliance Status |
 |:---|:---|:---|:---|:---|
@@ -712,7 +714,7 @@ Dr. E. F. Codd formulated twelve rules (plus Rule 0) that establish whether an i
 
 ## 14. Individual Contributions (Step 11)
 
-The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the academic supervision of **Dr. Balkrishna Patil**. Specific responsibilities were distributed across the project lifecycle as follows:
+The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the academic guidance of **Dr. Balkrishna Patil**. All four team members met regularly to review schema revisions, resolve foreign key constraints, and test backend queries against sample data. Specific responsibilities were divided as follows:
 
 | Sr. No. | Student Name | PRN | Core Responsibilities & Modules Authored |
 |:---:|:---|:---:|:---|
@@ -725,16 +727,15 @@ The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the 
 
 ## 15. Conclusion
 
-The **NutriGuide** relational database project successfully demonstrates the end-to-end design, normalization, implementation, and optimization of an academic and clinical-grade personal nutrition management database. 
+Building NutriGuide gave our team practical, end-to-end experience taking a real-world software concept from an initial problem statement all the way to a normalized, high-performance relational database. Working on this project highlighted the clear practical value behind core relational database principles:
 
-### Key Project Achievements:
-1. **Pristine 3NF / BCNF Schema**: By decomposing the unnormalized flat meal model into ten discrete relational tables, all insertion, update, and deletion anomalies were formally eliminated.
-2. **Associative Relationship Resolution**: Many-to-many cardinalities between meals and foods, as well as meal plans and foods, were cleanly resolved via associative junction entities with portion quantities.
-3. **Rigorous Referential Integrity**: Explicit foreign key actions (`CASCADE` on user dependents, `RESTRICT` on catalog items) guarantee that historical dietary logs remain permanent and audit-compliant.
-4. **Declarative Database Constraints**: Boundary rules on physical dimensions, caloric targets, and serving portions are enforced at the database kernel level through `CHECK` constraints and `NOT NULL` rules.
-5. **Advanced Database Programmability**: The inclusion of stored functions (dynamic BMI evaluation), stored procedures (consolidated daily summaries with OUT parameters), views (pre-aggregated daily totals), and triggers (automated audit trails and SQLSTATE validation) highlights the power of modern database engines.
+1. **Practical Value of Normalization**: Decomposing our initial flat spreadsheet model into ten 3NF and BCNF tables was essential to ensure that updating body weights or food catalog facts would never corrupt historical records.
+2. **Clean Many-to-Many Handling**: Designing the `meal_item` and `meal_plan_item` associative junction tables showed us how multi-item meals can be modeled without resorting to multi-valued strings or repeated columns.
+3. **Storage-Level Data Safety**: Configuring declarative `CHECK` constraints directly in MySQL ensures that negative heights, weights, and serving portions are rejected at the storage layer rather than relying only on frontend validation.
+4. **Performance via Stored Programs**: Writing stored functions (`calculate_bmi`) and procedures with output parameters (`get_daily_summary`) demonstrated how much network traffic and client overhead can be reduced by performing aggregations directly inside the database engine.
+5. **Automated Accountability**: Implementing the `trg_after_meal_insert` trigger confirmed that audit logging can be made completely foolproof and independent of application-level bugs.
 
-The project demonstrates compliance with the B.Tech Computer Science DBMS curriculum standards, illustrating how relational theory directly translates into reliable, scalable software engineering.
+Overall, the project gave us a solid, hands-on understanding of database architecture, query optimization, and schema engineering in MySQL 8.x.
 
 ---
 

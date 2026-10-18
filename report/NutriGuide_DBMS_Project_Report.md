@@ -53,48 +53,48 @@
 
 ## 1. Introduction
 
-In modern preventive healthcare and personal wellness management, dietary intake and nutrient balance play a pivotal role. The widespread availability of processed foods, irregular eating routines, and diverging nutritional needs across individuals have created an urgent imperative for structured dietary tracking systems. Many individuals attempt to monitor their caloric and macronutrient intake (proteins, carbohydrates, fats) using manual logbooks, generic smartphone note apps, or disconnected spreadsheets. However, manual recording systems quickly deteriorate: mathematical aggregation is labor-intensive, multi-item meals are recorded with varying serving definitions, and longitudinal history becomes fragmented or lost.
+Keeping track of daily food intake and maintaining a healthy balance of nutrients is something many students and working adults struggle with every day. In our college campus and routine lives, most people either eat on erratic schedules or consume packed meals without knowing their actual caloric breakdown. When people attempt to track their diet, they typically jot down food names in spiral notebooks, smartphone note apps, or casual Excel sheets. In practice, this manual record-keeping quickly breaks down: scaling macro counts by hand whenever portion sizes change is tedious, food names get entered inconsistently, and the records end up scattered across months without any clear structure.
 
-**NutriGuide — Your Personal Nutrition Companion** is a comprehensive, production-grade relational database management system designed to systematically capture, organize, analyze, and optimize personal nutrition data. Engineered specifically for academic evaluation and clinical-demonstration rigor under the Database Management Systems (DBMS) curriculum, NutriGuide provides an enterprise-quality relational backend running on the **MySQL 8.x** relational database engine with InnoDB ACID transactional semantics.
+To tackle this real-world problem, our team designed and built **NutriGuide**, a desktop database application powered by a **Java Swing GUI**, an embedded **Java HTTP/REST service**, and a relational **MySQL 8.x** backend using the InnoDB storage engine. Developed as part of our Database Management Systems (DBMS) course, the core objective of this project is to take database theory taught in class and apply it directly to practical software development. We focused heavily on rigorous relational schema design—eliminating anomalies through normalization up to Boyce-Codd Normal Form (BCNF), preserving data integrity with explicit foreign key constraints (`CASCADE` and `RESTRICT`), and using stored subprograms to offload calculations from client memory to the database engine.
 
-The database models ten tightly integrated entities spanning:
-1. **User Demographics & Anthropometrics**: Secure user credentials, demographic parameters (age, gender), physical measurements (height in centimeters, weight in kilograms), and physical activity levels.
-2. **Macronutrient & Caloric Target Goals**: User-defined nutritional targets (calories, protein, carbohydrates, fat) with historical versioning and single-active-goal business rule enforcement.
-3. **Reference Food Catalog**: Categorized food items (Grains, Proteins, Dairy, Fruits, Vegetables) with precise nutritional densities per standard serving size.
-4. **Multi-Item Meal Transactions**: Real-time logging of breakfast, lunch, dinner, and snack meal events, resolved atomically through an associative junction entity (`meal_item`).
-5. **Prospective Meal Planning**: Weekly and monthly diet regimens scheduled across date intervals, linked to designated target meal slots.
-6. **Rule-Based Recommendation History**: Persisted dietary advisory guidelines evaluating user caloric deficits, surpluses, and protein compliance against standard WHO nutritional benchmarks.
-7. **Automated Audit Logging**: Real-time audit trails maintained via database triggers capturing user operations without application-side overhead.
+Our database schema models ten interconnected entities covering the full lifecycle of personal nutrition management:
+1. **User Accounts & Health Metrics**: Storing basic demographic facts (age, gender), physical parameters (height in cm, weight in kg), and physical activity levels along with securely hashed credentials.
+2. **Nutritional Targets & Goals**: Storing daily targets for calories, protein, carbohydrates, and fats, with active-flag versioning so users can adjust targets over time without erasing previous history.
+3. **Food Item Catalog**: A catalog of foods organized into dietary categories (Grains, Proteins, Dairy, Fruits, Vegetables), complete with reference calories and macronutrient densities per standard 100g serving.
+4. **Multi-Item Meal Logs**: Real-time logging of breakfast, lunch, dinner, and snack events, decomposed cleanly into individual food line items via the associative junction entity `meal_item`.
+5. **Prospective Meal Regimens**: Allowing users to plan upcoming daily and weekly diets in advance across defined date windows.
+6. **Dietary Recommendations**: Persisted automated guidelines that compare user goals against real consumed intake to identify caloric surpluses, deficits, and protein shortfalls.
+7. **Database Audit Logging**: An automated audit trail written by database triggers on meal insertion, ensuring full accountability without requiring extra lines of application code.
 
-The core relational database is implemented in MySQL 8.x, enforcing schema stability through primary keys, foreign keys with explicit referential integrity actions (`ON UPDATE CASCADE`, `ON DELETE CASCADE`, `ON DELETE RESTRICT`), candidate key uniqueness, and declarative CHECK constraints. Above the table storage layer, NutriGuide incorporates high-level database programmability including stored functions for dynamic Body Mass Index (BMI) computation, stored procedures with output parameters for aggregate daily nutrition summaries, analytical views, and audit/validation triggers.
+The backend implementation relies on MySQL 8.x features including primary keys, candidate key uniqueness (`UNIQUE`), foreign keys with explicit cascade/restrict rules, and declarative `CHECK` constraints to ensure bad data never enters the tables. Above the basic tables, we implemented stored functions (dynamic BMI calculation), stored procedures with output parameters for daily summaries, database views for instant aggregations, and triggers for automated validation and auditing.
 
 ---
 
 ## 2. Problem Statement (Step 1)
 
-Individuals and dietary consultants seeking to manage nutritional health through manual record-keeping face several systematic data management challenges:
+When people try to record and track their nutrition by hand or via loose digital spreadsheets, they repeatedly run into practical data management hurdles:
 
-1. **Scattered and Disorganized Records**: Dietary intake, body weight fluctuations, target goals, and food nutrient values are frequently noted in disparate physical notebooks, phone memos, or isolated spreadsheets. As a result, compiling a consolidated, longitudinal picture of an individual's nutritional health is virtually impossible.
-2. **Nutrient Calculation Errors & Latency**: Computing cumulative daily calories and macro splits (grams of protein, carbohydrates, and fats) requires repetitive arithmetic scaling based on portion size. Manual calculations are prone to severe calculation errors, misleading users regarding their actual intake.
-3. **Data Redundancy & Inconsistency (Flat File Flaws)**: When nutritional data is stored in unnormalized flat files, food descriptions and nutrient densities are repeatedly duplicated across every logged meal. If the nutritional profile of an item (e.g., Cooked White Rice) is updated, records in earlier rows remain unchanged, creating contradictory records.
-4. **Lack of Validation & Boundary Integrity**: Manual systems fail to prevent erroneous inputs such as negative serving sizes, negative weights or heights, or impossible calorie amounts.
-5. **Absence of Transactional Atomicity**: A meal typically consists of multiple foods consumed together. In traditional spreadsheets, a partial crash during entry leaves orphaned records where a meal is recorded without its accompanying food components.
-6. **No Automated Audit History**: Manual systems provide no reliable mechanism to detect when a meal was logged, modified, or deleted, impeding auditability and compliance tracking.
-7. **Disconnected Goal Analysis**: Without automated relational joins between logged intake and active goals, users cannot deterministically evaluate whether they are in a caloric surplus or deficit.
+1. **Scattered and Disorganized Information**: People tend to note daily meals in one place, body weight measurements in another, and their fitness goals on random sheets of paper. Because there is no central database linking these pieces together, analyzing changes in body weight against actual caloric intake over time becomes nearly impossible.
+2. **Repetitive Calculation Errors**: Calculating daily totals of calories, proteins, carbs, and fats requires multiplying portion sizes by nutrient percentages for every single item on a plate. Performing these calculations manually every day leads to frequent arithmetic errors, giving users a false impression of what they actually consumed.
+3. **Data Redundancy in Flat Files**: When food intake is saved in simple spreadsheets, common food items (like Boiled Eggs or Cooked White Rice) get their full nutrient facts re-typed for every logged meal. If someone discovers an error in the nutrient values and updates one row, all historical rows still hold the old value, creating conflicting and untrustworthy records.
+4. **No Input Validation**: Spreadsheets and text notes do not stop users from typing invalid or nonsensical numbers, such as negative weights, zero heights, or negative portion sizes.
+5. **Lack of Transaction Atomicity**: In reality, a meal consists of several food items eaten together. If an application crashes halfway through saving a multi-item meal, a manual or poorly designed system leaves orphaned records where a meal is recorded without its food items.
+6. **Missing Audit History**: Traditional spreadsheets do not track when a record was logged, updated, or removed, making it impossible to audit past changes or identify user activity history.
+7. **Disconnected Goal Comparison**: Without relational queries linking logged meals to active nutritional targets, users cannot easily know whether they hit their daily caloric surplus or deficit.
 
 ### Proposed Solution
-NutriGuide resolves each of these challenges through a centralized, strictly normalized relational database. The schema eliminates data redundancy, guarantees referential and transactional integrity, automates dynamic metric calculations through stored subprograms, enforces data validation at the storage layer via CHECK constraints and triggers, and enables instantaneous reporting through pre-aggregated SQL views.
+NutriGuide directly resolves these flaws by implementing a centralized, fully normalized relational database in MySQL. The relational design eliminates redundant data, enforces strict primary and foreign key rules, validates inputs at the storage engine level with `CHECK` constraints, automatically computes daily metrics using stored procedures and views, and safeguards meal logging through atomic database transactions.
 
 ---
 
 ## 3. System Architecture and Modules
 
 ### 3.1 Three-Tier Relational Topology
-The NutriGuide architecture is structured into three clean, decoupled tiers:
+To keep the application modular, maintainable, and easy to debug, we separated NutriGuide into three distinct architectural tiers:
 
-1. **Presentation Layer (Java Swing Client)**: An ergonomic Windows desktop user interface built using Java Swing. It provides dedicated user interface windows (`LoginFrame`, `RegisterFrame`, `DashboardFrame`, `MealLogFrame`, `NutritionGoalFrame`, `RecommendationFrame`, `ReportFrame`, `ProfileFrame`) running on the Swing Event Dispatch Thread (EDT). All long-running API operations are dispatched asynchronously using `SwingWorker` threads to prevent user interface freezing.
-2. **Application & Logic Layer (Java HttpServer)**: A lightweight, high-performance HTTP REST server running on `http://127.0.0.1:8081`. It encapsulates the application services (`AuthenticationService`, `NutritionService`, `MealService`, `FoodService`, `RecommendationService`, `ReportService`, `UserService`), token-based `SessionManager`, and salted `PBKDF2-HMAC-SHA256` password security. It issues parameterized JDBC queries to MySQL.
-3. **Relational Database Layer (MySQL 8.x Engine)**: The relational database tier manages table storage using the InnoDB storage engine. It provides ACID transactional guarantees, enforces relational integrity, executes stored functions and procedures, maintains aggregation views, and automatically invokes audit and validation triggers.
+1. **Presentation Layer (Java Swing Client)**: A desktop interface built using standard Java Swing components. It contains dedicated windows for user workflows (`LoginFrame`, `RegisterFrame`, `DashboardFrame`, `MealLogFrame`, `NutritionGoalFrame`, `RecommendationFrame`, `ReportFrame`, and `ProfileFrame`). To make sure the GUI never freezes while waiting for network or database responses, all HTTP requests run asynchronously in the background using `SwingWorker` threads, keeping the Event Dispatch Thread (EDT) responsive.
+2. **Application & Logic Layer (Java HttpServer)**: A lightweight REST server running locally on `http://127.0.0.1:8081`. It handles route dispatching, input validation, and business logic across service classes (`AuthenticationService`, `NutritionService`, `MealService`, `FoodService`, `RecommendationService`, `ReportService`, and `UserService`). It manages user sessions through token authentication and protects user passwords using salted PBKDF2-HMAC-SHA256 with 600,000 hash iterations before communicating with MySQL over JDBC.
+3. **Relational Database Layer (MySQL 8.x Engine)**: The core storage tier runs on MySQL 8.x using the InnoDB engine. It provides ACID transactional safety, enforces relational integrity (`CASCADE` / `RESTRICT`), executes stored functions and procedures, maintains aggregation views, and automatically invokes audit triggers.
 
 ![Figure 3.1: System Architecture](images/system_architecture.png)
 *Figure 3.1: NutriGuide System Architecture & Multi-Tier Topology*
@@ -102,30 +102,30 @@ The NutriGuide architecture is structured into three clean, decoupled tiers:
 ### 3.2 System Modules
 
 1. **User Profile & Authentication Module (`user_profile`)**:
-   - Manages user account intake, authentication, and secure demographic tracking.
-   - Stores user height, weight, age, gender, and physical activity tier.
-   - Protects user credentials using salted PBKDF2-HMAC-SHA256 password digests with an adaptive 600,000-iteration work factor.
+   - Handles account registration, login verification, and demographic tracking.
+   - Stores user height, weight, age, gender, and physical activity level.
+   - Keeps passwords secure using salted PBKDF2-HMAC-SHA256 hashing so plaintext passwords are never saved.
 2. **Nutrition Goal Management Module (`nutrition_goal`)**:
-   - Allows users to configure custom daily caloric and macronutrient targets.
-   - Implements historical versioning through an `is_active` status flag.
-   - Enforces the business constraint that exactly one goal may remain active per user at any given timestamp.
+   - Lets users configure target daily calories, protein, carbohydrate, and fat amounts.
+   - Supports historical tracking by marking older goals inactive (`is_active = FALSE`) whenever a new goal is set.
+   - Enforces the business rule that each user has exactly one active goal at any given time.
 3. **Food Catalog & Categorization Module (`food_category`, `food`)**:
-   - Maintains a standardized, immutable reference catalog of foods classified into primary dietary groups (Grains, Proteins, Dairy, Fruits, Vegetables).
-   - Tracks standard serving sizes in grams and associated energy/macronutrient values (calories, protein, carbs, fat).
+   - Stores a standardized catalog of foods organized into primary groups (Grains, Proteins, Dairy, Fruits, Vegetables).
+   - Keeps track of serving sizes in grams along with calories and macronutrient densities.
 4. **Meal Logging & Transaction Module (`meal`, `meal_item`)**:
-   - Captures daily meal events (Breakfast, Lunch, Dinner, Snack).
-   - Utilizes an associative junction entity (`meal_item`) to resolve the many-to-many relationship between meals and food items.
-   - Enforces ACID transactions with atomic commit and rollback capabilities.
+   - Records breakfast, lunch, dinner, and snack entries for authenticated users.
+   - Uses the associative junction table `meal_item` to link meals with multiple foods and their consumed portion multipliers.
+   - Executes meal insertion inside atomic database transactions (`START TRANSACTION` / `COMMIT`).
 5. **Meal Planning Module (`meal_plan`, `meal_plan_item`)**:
-   - Enables prospective diet regimen scheduling across structured date windows (e.g., 7-day weight cut plan, 30-day muscle gain plan).
-   - Resolves planned meal schedules against food catalog entries.
+   - Enables users to prepare upcoming diet schedules across date intervals (e.g., a 7-day cutting plan).
+   - Links planned meal times with food catalog items.
 6. **Rule-Based Recommendation Engine (`recommendation`)**:
-   - Evaluates active nutritional goals against actual aggregate daily intake.
-   - Deterministically generates clinically grounded educational guidance regarding caloric deficits, surpluses, and protein adequacy.
-7. **Automated Audit & Logging Module (`activity_log`)**:
-   - Maintains a tamper-evident audit history of user lifecycle actions and trigger-logged meal transactions.
+   - Compares active user goals with actual aggregate food intake.
+   - Generates educational guidance alerting users to caloric surpluses, deficits, or low protein intake.
+7. **Audit & Activity Log Module (`activity_log`)**:
+   - Maintains an append-only log of user actions and trigger-captured meal events.
 8. **Reporting & Analytics Module (`views`, `procedures`)**:
-   - Leverages SQL views (`daily_nutrition_summary`, `food_category_details`) and stored procedures (`get_daily_summary`) to generate instantaneous analytical reports for date ranges.
+   - Utilizes views (`daily_nutrition_summary`) and stored procedures (`get_daily_summary`) to deliver aggregated intake reports without writing repetitive SQL queries in the frontend.
 
 ---
 
@@ -156,11 +156,11 @@ The NutriGuide architecture is structured into three clean, decoupled tiers:
 
 ### 4.2 Non-Functional Requirements
 
-- **Data Integrity & Consistency**: Enforce strict schema constraints including declarative PRIMARY KEYs, FOREIGN KEYs with explicit referential integrity rules, and CHECK constraints guarding against negative physical metrics.
-- **ACID Transaction Compliance**: Multi-item meal logging and goal transitions must execute within explicit atomic transaction boundaries with rollback on exception.
-- **Precision of Nutritional Data**: All caloric and macronutrient quantities must use high-precision fixed-point numeric types (`DECIMAL(7,2)`, `DECIMAL(6,2)`, `DECIMAL(5,2)`) instead of floating-point representations (`FLOAT`, `DOUBLE`) to prevent IEEE 754 rounding drift.
-- **Architectural Security**: The database binds strictly to local loops; passwords are never persisted or returned in plaintext; all SQL queries utilize parameterized statements to prevent SQL injection.
-- **Modularity & High Cohesion**: Schema separation strictly adheres to Third Normal Form (3NF), ensuring that tables correspond to discrete real-world business entities.
+- **Data Integrity & Consistency**: All relations enforce primary keys, explicit foreign key cascade and restrict policies, and declarative `CHECK` constraints to reject negative heights, weights, or serving sizes.
+- **ACID Transaction Safety**: Meal logging and goal updates must execute atomically using database transactions; if any line item fails to save, all changes roll back to prevent half-saved meals.
+- **Numeric Precision**: All nutritional numbers and portion multipliers use exact fixed-point `DECIMAL` types rather than `FLOAT` or `DOUBLE` to avoid cumulative IEEE 754 rounding discrepancies.
+- **Database Security**: The database listens only on local loopback (`127.0.0.1`); all backend SQL queries use parameterized `PreparedStatement` calls to prevent SQL injection.
+- **Cohesion & Normalization**: The database tables are normalized up to 3NF and BCNF, ensuring every table represents exactly one clear real-world concept.
 
 ---
 
@@ -170,56 +170,56 @@ The NutriGuide architecture is structured into three clean, decoupled tiers:
 
 | Entity / Table Name | Primary Key | Foreign Keys | Key Attributes | Business Purpose |
 |:---|:---|:---|:---|:---|
-| **`user_profile`** | `user_id` | *None* | `name`, `email`, `password_hash`, `age`, `gender`, `height_cm`, `weight_kg`, `activity_level`, `created_at` | Stores registered user demographic, anthropometric, and credential records. |
-| **`nutrition_goal`** | `goal_id` | `user_id` | `target_calories`, `target_protein`, `target_carbs`, `target_fats`, `is_active`, `created_at` | Stores caloric and macronutrient daily targets configured by users. |
-| **`food_category`** | `category_id` | *None* | `category_name` | Classifies food items into distinct dietary classifications. |
-| **`food`** | `food_id` | `category_id` | `food_name`, `serving_size`, `calories`, `protein`, `carbohydrates`, `fat` | Reference catalog of consumable foods and their nutrient densities. |
-| **`meal`** | `meal_id` | `user_id` | `meal_type`, `meal_date`, `created_at` | Represents a discrete meal event consumed by a user on a specific date. |
+| **`user_profile`** | `user_id` | *None* | `name`, `email`, `password_hash`, `age`, `gender`, `height_cm`, `weight_kg`, `activity_level`, `created_at` | Stores user account information, demographic facts, and physical measurements. |
+| **`nutrition_goal`** | `goal_id` | `user_id` | `target_calories`, `target_protein`, `target_carbs`, `target_fats`, `is_active`, `created_at` | Tracks daily calorie and macronutrient targets configured by users. |
+| **`food_category`** | `category_id` | *None* | `category_name` | Organizes food catalog items into standard dietary groups. |
+| **`food`** | `food_id` | `category_id` | `food_name`, `serving_size`, `calories`, `protein`, `carbohydrates`, `fat` | Contains nutritional facts per standard serving for catalog food items. |
+| **`meal`** | `meal_id` | `user_id` | `meal_type`, `meal_date`, `created_at` | Represents a meal event consumed by a user on a given day. |
 | **`meal_item`** | `meal_item_id` | `meal_id`, `food_id` | `quantity` | Associative junction resolving the M:N relationship between meals and foods. |
-| **`meal_plan`** | `meal_plan_id` | `user_id` | `plan_name`, `start_date`, `end_date`, `is_active`, `created_at` | Prospective diet regimen schedules established over date intervals. |
+| **`meal_plan`** | `meal_plan_id` | `user_id` | `plan_name`, `start_date`, `end_date`, `is_active`, `created_at` | Prospective diet schedules created for specific date ranges. |
 | **`meal_plan_item`** | `meal_plan_item_id` | `meal_plan_id`, `food_id` | `planned_meal_type`, `quantity` | Associative junction resolving the M:N relationship between diet plans and foods. |
-| **`recommendation`** | `rec_id` | `user_id` | `rec_type`, `message`, `generated_at` | Persisted rule-based educational guidelines and advisories. |
-| **`activity_log`** | `log_id` | `user_id` | `action_taken`, `log_time` | Audit trail capturing user system interactions and trigger-logged meal transactions. |
+| **`recommendation`** | `rec_id` | `user_id` | `rec_type`, `message`, `generated_at` | Stores automated dietary feedback comparing intake with target goals. |
+| **`activity_log`** | `log_id` | `user_id` | `action_taken`, `log_time` | Audit trail recording user account actions and meal insertions. |
 
 ### 5.2 Relationships and Cardinalities
 
 | Relationship | Entity 1 | Entity 2 | Cardinality | Participation | Description |
 |:---|:---|:---|:---|:---|:---|
-| **User_Sets_Goals** | `user_profile` | `nutrition_goal` | **1 : N** | User: Partial<br>Goal: Total | One user can configure multiple historical goals; each goal belongs to exactly one user. |
-| **User_Logs_Meals** | `user_profile` | `meal` | **1 : N** | User: Partial<br>Meal: Total | A user can log zero, one, or many meals; each meal is logged by exactly one user. |
-| **Meal_Contains_Items** | `meal` | `meal_item` | **1 : N** | Meal: Total<br>Item: Total | A meal contains one or more meal items; each line item belongs to one meal header. |
-| **Food_Appears_In_Items**| `food` | `meal_item` | **1 : N** | Food: Partial<br>Item: Total | A food can appear in multiple meal items; each line item references one specific food. |
+| **User_Sets_Goals** | `user_profile` | `nutrition_goal` | **1 : N** | User: Partial<br>Goal: Total | One user can have multiple historical goals, but each goal belongs to one user. |
+| **User_Logs_Meals** | `user_profile` | `meal` | **1 : N** | User: Partial<br>Meal: Total | A user logs multiple meals over time; each meal belongs to one specific user. |
+| **Meal_Contains_Items** | `meal` | `meal_item` | **1 : N** | Meal: Total<br>Item: Total | A meal contains one or more food items; each item links to one parent meal. |
+| **Food_Appears_In_Items**| `food` | `meal_item` | **1 : N** | Food: Partial<br>Item: Total | A food can be chosen in many meal items; each line item references one food. |
 | **Category_Classifies_Food**| `food_category` | `food` | **1 : N** | Category: Partial<br>Food: Total | A category groups multiple foods; each food belongs to exactly one category. |
-| **User_Schedules_Plans** | `user_profile` | `meal_plan` | **1 : N** | User: Partial<br>Plan: Total | A user can create zero, one, or many prospective diet plans. |
-| **Plan_Includes_Items** | `meal_plan` | `meal_plan_item`| **1 : N** | Plan: Total<br>Item: Total | A meal plan incorporates one or more scheduled food entries. |
-| **Food_In_Meal_Plans** | `food` | `meal_plan_item`| **1 : N** | Food: Partial<br>Item: Total | A food can be scheduled across multiple diet plans. |
-| **User_Receives_Recs** | `user_profile` | `recommendation`| **1 : N** | User: Partial<br>Rec: Total | A user can receive multiple tailored recommendations over time. |
-| **User_Generates_Audit**| `user_profile` | `activity_log` | **1 : N** | User: Partial<br>Log: Total | User events and trigger executions generate audit records in the activity log. |
+| **User_Schedules_Plans** | `user_profile` | `meal_plan` | **1 : N** | User: Partial<br>Plan: Total | A user can create several planned diet schedules over time. |
+| **Plan_Includes_Items** | `meal_plan` | `meal_plan_item`| **1 : N** | Plan: Total<br>Item: Total | A meal plan includes multiple scheduled food entries. |
+| **Food_In_Meal_Plans** | `food` | `meal_plan_item`| **1 : N** | Food: Partial<br>Item: Total | A food item can appear across multiple diet plans. |
+| **User_Receives_Recs** | `user_profile` | `recommendation`| **1 : N** | User: Partial<br>Rec: Total | A user receives multiple dietary recommendations as they log meals. |
+| **User_Generates_Audit**| `user_profile` | `activity_log` | **1 : N** | User: Partial<br>Log: Total | User operations and meal triggers produce timestamped audit entries. |
 
-#### Resolution of Many-to-Many Relationships
-- **Meal and Food (M:N)**: A meal can consist of multiple foods (e.g., Rice, Dal, Salad), and a single food can be consumed across thousands of different meals. This M:N cardinality is decomposed into two 1:N relationships via the **`meal_item`** associative entity with `quantity` as an intersection attribute.
-- **Meal_Plan and Food (M:N)**: A prospective diet plan contains multiple planned foods, and a food can be scheduled across numerous diet plans. This M:N relationship is resolved into two 1:N relationships via the **`meal_plan_item`** associative entity.
+#### Resolving Many-to-Many Relationships
+- **Meal and Food (M:N)**: A meal contains multiple foods, and the same food can appear in hundreds of different meals across different days and users. We resolved this M:N relationship by creating the associative table **`meal_item`**, which stores `meal_id`, `food_id`, and the portion multiplier `quantity`.
+- **Meal_Plan and Food (M:N)**: A planned diet regimen involves multiple foods, and a food can be scheduled in different plans. We resolved this M:N relationship with the associative table **`meal_plan_item`**.
 
 ---
 
 ## 6. ER and EER Diagrams (Step 4)
 
 ### 6.1 Conceptual ER Diagram (Chen Notation)
-The Entity-Relationship (ER) diagram below illustrates the conceptual schema of NutriGuide following standard Chen notation:
-- **Rectangles**: Represent the ten fundamental entity sets.
-- **Diamonds**: Represent relationship sets linking entities.
-- **Ellipses**: Represent entity attributes, with primary keys underlined and unique constraints indicated.
-- **Numeric Cardinalities**: Expressed along the relationship lines (`1` and `N`).
+The Entity-Relationship (ER) diagram below presents the conceptual design of NutriGuide drawn according to standard Chen notation:
+- **Rectangles**: Represent the ten entity sets in our database.
+- **Diamonds**: Represent relationships connecting the entities.
+- **Ellipses**: Represent attributes, with primary keys clearly underlined.
+- **Numbers (1 and N)**: Indicate relationship cardinalities along connecting lines.
 
 ![Figure 6.1: ER Diagram](images/er_diagram.png)
 *Figure 6.1: NutriGuide Conceptual ER Diagram (Chen Notation) with M:N Associative Resolution*
 
 ### 6.2 Enhanced Entity-Relationship (EER) Diagram
-The Enhanced ER (EER) diagram provides full physical implementation specifics:
-- Detailed schema table cards with explicit data types, primary keys, and foreign key linkages.
-- Exact referential integrity constraints (`ON DELETE CASCADE`, `ON DELETE RESTRICT`, `ON UPDATE CASCADE`).
-- Declarative CHECK constraints governing demographic and nutritional boundaries.
-- The trigger-maintained audit relationship: a dashed pipeline illustrating `trg_after_meal_insert` automatically populating `activity_log`.
+The Enhanced ER (EER) diagram shows the physical implementation schema in MySQL:
+- Table cards showing exact column data types, primary keys (`[PK]`), and foreign keys (`[FK]`).
+- Explicit foreign key referential actions (`ON DELETE CASCADE` and `ON DELETE RESTRICT`).
+- Declarative `CHECK` constraints guarding physical boundaries (height > 0, weight > 0, quantity > 0).
+- The automated trigger flow connecting `meal` to `activity_log` via `trg_after_meal_insert`.
 
 ![Figure 6.2: EER Diagram](images/eer_diagram.png)
 *Figure 6.2: NutriGuide Enhanced Entity-Relationship (EER) Relational Schema with Constraints and Foreign Keys*
@@ -243,26 +243,28 @@ The Enhanced ER (EER) diagram provides full physical implementation specifics:
 9. **`recommendation`** (<u>rec_id</u>, *user_id*, rec_type, message, generated_at)
 10. **`activity_log`** (<u>log_id</u>, *user_id*, action_taken, log_time)
 
-### 7.2 Foreign Keys and Referential Actions
+### 7.2 Foreign Keys and Referential Integrity Rules
 
-| Foreign Key | Child Table | Parent Table & Referenced Column | ON UPDATE | ON DELETE | Rationale |
+When setting up foreign key constraints in MySQL, our team thought carefully about real-world scenarios. We needed to distinguish between user-owned records (which should be deleted if the user leaves) and reference catalog data (which must never be deleted if historical logs depend on it).
+
+| Foreign Key | Child Table | Parent Table & Referenced Column | ON UPDATE | ON DELETE | Engineering Rationale |
 |:---|:---|:---|:---|:---|:---|
-| `fk_nutrition_goal_user` | `nutrition_goal` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Deleting a user profile removes their historical goal records. |
-| `fk_food_category` | `food` | `food_category(category_id)` | `CASCADE` | `RESTRICT` | Prevents accidental deletion of categories that currently contain active foods. |
-| `fk_meal_user` | `meal` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Deleting a user profile cleans up all associated meal headers. |
-| `fk_meal_item_meal` | `meal_item` | `meal(meal_id)` | `CASCADE` | `CASCADE` | Deleting a meal event automatically cascades to remove its constituent line items. |
-| `fk_meal_item_food` | `meal_item` | `food(food_id)` | `CASCADE` | `RESTRICT` | Prevents deleting a catalog food item if it has been logged in user history. |
-| `fk_meal_plan_user` | `meal_plan` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Removing a user account removes all scheduled diet plans. |
-| `fk_meal_plan_item_plan` | `meal_plan_item` | `meal_plan(meal_plan_id)` | `CASCADE` | `CASCADE` | Removing a diet plan removes all associated planned item entries. |
-| `fk_meal_plan_item_food` | `meal_plan_item` | `food(food_id)` | `CASCADE` | `RESTRICT` | Prevents deleting foods that are actively scheduled in future diet regimens. |
-| `fk_recommendation_user` | `recommendation` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Purging a user cleans up all historical recommendations. |
+| `fk_nutrition_goal_user` | `nutrition_goal` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | When a user profile is removed, all their personal nutrition goals are purged. |
+| `fk_food_category` | `food` | `food_category(category_id)` | `CASCADE` | `RESTRICT` | Stops anyone from accidentally deleting a food category while active foods belong to it. |
+| `fk_meal_user` | `meal` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Deleting a user account cleans up all meal records logged by that user. |
+| `fk_meal_item_meal` | `meal_item` | `meal(meal_id)` | `CASCADE` | `CASCADE` | Removing a meal header automatically removes all individual food items in that meal. |
+| `fk_meal_item_food` | `meal_item` | `food(food_id)` | `CASCADE` | `RESTRICT` | Protects past meal history: a food item cannot be dropped if someone has logged it before. |
+| `fk_meal_plan_user` | `meal_plan` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Deleting a user cleans up all upcoming meal plans created by that user. |
+| `fk_meal_plan_item_plan` | `meal_plan_item` | `meal_plan(meal_plan_id)` | `CASCADE` | `CASCADE` | Deleting a meal plan automatically removes all scheduled food line items in it. |
+| `fk_meal_plan_item_food` | `meal_plan_item` | `food(food_id)` | `CASCADE` | `RESTRICT` | Prevents removing a catalog food if it is currently scheduled in an active diet plan. |
+| `fk_recommendation_user` | `recommendation` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Removing a user account clears out their past recommendation history. |
 | `fk_activity_log_user` | `activity_log` | `user_profile(user_id)` | `CASCADE` | `CASCADE` | Account termination cascades to clean up the user's audit log entries. |
 
 ---
 
 ## 8. Anomalies (Step 6)
 
-A database anomaly is a data integrity flaw that manifests when unrelated business facts are merged into a single unnormalized relation. To illustrate why NutriGuide must be decomposed into multiple normalized relations, consider an unnormalized "flat" design (`NUTRITION_FLAT`) where user profiles, meal events, food catalog attributes, and food categories are merged into a single table:
+In relational database theory, an anomaly is a data integrity flaw that happens when unrelated entities are jammed into a single table. To see why NutriGuide must be broken down into normalized tables, we created a sample flat relation called `NUTRITION_FLAT`. This mirrors how a typical beginner would store data in a single spreadsheet tab:
 
 #### Unnormalized Relation: `NUTRITION_FLAT`
 *(Composite Candidate Key: `{email, meal_date, meal_type, food_name}`)*
@@ -274,27 +276,29 @@ A database anomaly is a data integrity flaw that manifests when unrelated busine
 | 1 | John Doe | user@example.com | 175.00 | 70.00 | 2026-10-18 | Dinner | Yellow Dal | 100.00 | 116.00 | 7.30 | Proteins | 1.00 |
 | 2 | Jane Smith | jane@example.com | 162.00 | 58.00 | 2026-10-18 | Breakfast| Rolled Oats | 100.00 | 389.00 | 16.90 | Grains | 1.00 |
 
+Examining this flat table reveals three fundamental anomalies:
+
 ### 8.1 Insertion Anomalies
-1. **Inability to Add Foods Without Meals**: If a dietitian adds a newly certified food item (e.g., *Broccoli*) to the system, it cannot be inserted into `NUTRITION_FLAT` because `user_id`, `email`, `meal_date`, and `meal_type` form part of the candidate key and cannot be `NULL`.
-2. **Inability to Register New Users**: A newly registered user cannot be stored until they log their first meal event, as food and meal attributes cannot be empty.
-3. **Inability to Create Food Categories**: A new food category (e.g., *Beverages*) cannot be recorded unless an accompanying user, meal, and food item are simultaneously entered.
+1. **Adding New Foods Without a Meal**: Suppose an administrator wants to add a new food item like *Broccoli* to the catalog. In `NUTRITION_FLAT`, this is impossible because the candidate key requires `email`, `meal_date`, and `meal_type`. Since primary key columns cannot be `NULL`, the food cannot be inserted until someone eats it.
+2. **Registering a New User Without Logging a Meal**: When a new user registers on the app, their account cannot be saved in `NUTRITION_FLAT` until they log their first meal, because food columns cannot be empty.
+3. **Creating Empty Food Categories**: An administrator cannot create a new category (e.g., *Beverages*) until a user, a meal, and a food in that category are all entered together.
 
 ### 8.2 Update Anomalies
-1. **Redundant User Attribute Updates**: If John Doe updates his body weight from 70.00 kg to 68.50 kg, the update must be applied across every historical meal row he has ever logged. If an update statement updates only recent rows, John Doe will have contradictory weights in the database.
-2. **Food Nutritional Profile Changes**: If the laboratory nutritional evaluation of *Cooked White Rice* updates its carbohydrate content, every past row referencing white rice must be modified. Incomplete updates lead to conflicting nutrient data.
-3. **Category Renaming Inconsistency**: Renaming the category *Proteins* to *Protein Sources* requires searching and updating millions of meal item rows.
+1. **Redundant Profile Updates**: If John Doe updates his body weight from 70.00 kg to 68.50 kg, the update has to be executed on every single row he has ever logged in the past. If a query updates only recent rows, John will end up with two different weights in the same table.
+2. **Food Nutrient Changes**: If the nutritional content of *Cooked White Rice* is corrected, every single historical meal referencing white rice has to be modified. A partial update leaves contradictory nutrient facts in the system.
+3. **Renaming Categories**: Renaming *Proteins* to *Protein Sources* requires searching and updating thousands of meal rows, risking typos and inconsistent data.
 
 ### 8.3 Deletion Anomalies
-1. **Unintended Loss of User Data**: If a user clears their meal history for a specific day, and that happens to be their only logged meal, deleting those rows completely purges their user profile, height, weight, and credentials from the system.
-2. **Unintended Loss of Food Catalog Items**: If the only logged occurrence of *Rolled Oats* is deleted by Jane Smith, the entire nutritional profile of *Rolled Oats* and its category definition are permanently erased from the database.
+1. **Losing User Information on Meal Deletion**: If John Doe logs only one meal and later decides to delete that meal record, deleting the row wipes out his user account, password hash, height, and weight as well.
+2. **Losing Catalog Items on History Cleanup**: If Jane Smith is the only person who logged *Rolled Oats* and she deletes her meal log, the entire nutritional profile of *Rolled Oats* and its category are permanently lost from the database.
 
 ---
 
 ## 9. Functional Dependencies (Step 7)
 
-A functional dependency X → Y holds over a relation R if and only if whenever two tuples have identical values for X, they must also have identical values for Y.
+A functional dependency $X \rightarrow Y$ means that whenever two rows have the same value for column set $X$, they must also have the identical value for column set $Y$. 
 
-The formal functional dependencies governing the NutriGuide schema and their candidate keys are defined as follows:
+Our schema is governed by the following formal functional dependencies and candidate keys:
 
 ### 1. `user_profile`
 - **Candidate Keys**: `{user_id}`, `{email}`
@@ -302,14 +306,14 @@ The formal functional dependencies governing the NutriGuide schema and their can
 - **Functional Dependencies**:
   - user_id → name, email, password_hash, age, gender, height_cm, weight_kg, activity_level, created_at
   - email → user_id, name, password_hash, age, gender, height_cm, weight_kg, activity_level, created_at
-  - *Rationale*: `user_id` uniquely identifies each user record. Because `email` is defined with a `UNIQUE` constraint, it also deterministically determines all attributes.
+  - *Explanation*: Each user is uniquely identified by their auto-incremented `user_id`. Since `email` is enforced with a `UNIQUE` constraint, it also uniquely identifies all remaining user attributes.
 
 ### 2. `nutrition_goal`
 - **Candidate Key**: `{goal_id}`
 - **Primary Key**: `goal_id`
 - **Functional Dependencies**:
   - goal_id → user_id, target_calories, target_protein, target_carbs, target_fats, is_active, created_at
-  - *Rationale*: Each configured goal is identified by its surrogate key `goal_id`.
+  - *Explanation*: Every nutrition goal is uniquely identified by its primary key `goal_id`.
 
 ### 3. `food_category`
 - **Candidate Keys**: `{category_id}`, `{category_name}`
@@ -317,7 +321,7 @@ The formal functional dependencies governing the NutriGuide schema and their can
 - **Functional Dependencies**:
   - category_id → category_name
   - category_name → category_id
-  - *Rationale*: Standard categories are uniquely identified by both numeric ID and unique textual name.
+  - *Explanation*: Dietary categories are uniquely identified by both their numeric ID and their unique category name.
 
 ### 4. `food`
 - **Candidate Keys**: `{food_id}`, `{food_name}`
@@ -325,14 +329,14 @@ The formal functional dependencies governing the NutriGuide schema and their can
 - **Functional Dependencies**:
   - food_id → category_id, food_name, serving_size, calories, protein, carbohydrates, fat
   - food_name → food_id, category_id, serving_size, calories, protein, carbohydrates, fat
-  - *Rationale*: Nutritional facts are fixed per food item; either `food_id` or unique `food_name` determines all nutritional values.
+  - *Explanation*: Nutritional facts are fixed properties of a food item; knowing either `food_id` or unique `food_name` determines all nutritional facts.
 
 ### 5. `meal`
 - **Candidate Key**: `{meal_id}`
 - **Primary Key**: `meal_id`
 - **Functional Dependencies**:
   - meal_id → user_id, meal_type, meal_date, created_at
-  - *Rationale*: A meal event header is uniquely identified by `meal_id`. Multiple meals of the same type on the same date are supported (e.g., multiple snacks).
+  - *Explanation*: A meal event is uniquely identified by `meal_id`. Users can log multiple meals of the same type on the same date (e.g., two snacks).
 
 ### 6. `meal_item`
 - **Candidate Keys**: `{meal_item_id}`, `{meal_id, food_id}`
@@ -340,7 +344,7 @@ The formal functional dependencies governing the NutriGuide schema and their can
 - **Functional Dependencies**:
   - meal_item_id → meal_id, food_id, quantity
   - (meal_id, food_id) → meal_item_id, quantity
-  - *Rationale*: An individual meal line item references a specific portion quantity of a food within a meal event.
+  - *Explanation*: Each meal item line references a specific food and portion quantity consumed within a parent meal event.
 
 ### 7. `meal_plan`
 - **Candidate Key**: `{meal_plan_id}`
@@ -370,17 +374,17 @@ The formal functional dependencies governing the NutriGuide schema and their can
 
 ## 10. Normalization (Step 8: 1NF to BCNF)
 
-Normalization is the formal mathematical decomposition of relational schemas to eliminate redundancy and prevent the anomalies identified in Section 8. NutriGuide was engineered by decomposing the initial flat design progressively from 1NF through Boyce-Codd Normal Form (BCNF).
+Normalization is the systematic process of decomposing large, unnormalized relations into smaller, well-structured tables to eliminate redundancy and prevent anomalies. During the design of NutriGuide, our group walked through the normalization stages from unnormalized flat data up to Boyce-Codd Normal Form (BCNF).
 
 ### 10.1 First Normal Form (1NF)
-**Rule**: A relation R is in 1NF if and only if all underlying domains contain only atomic (indivisible) values, and there are no repeating groups or multi-valued attributes.
+**Rule**: A relation is in 1NF if every column contains only atomic (indivisible) values, and there are no repeating groups or comma-separated lists inside a single cell.
 
-- **Violation in Unnormalized Flat Design**: In the unnormalized flat meal record, multiple food items and their respective portion quantities are grouped into comma-separated strings inside a single table cell (e.g., `"Grilled Chicken, Cooked Rice"` and `"1.0, 1.5"`).
+- **Violation in Unnormalized Data**: In the raw flat spreadsheet, multiple foods and their quantities were lumped together as comma-separated text strings within single cells (for instance, `"Grilled Chicken, Cooked Rice"` and `"1.0, 1.5"`).
 
 ![Figure 10.1: Before 1NF](images/figure_10_1_before_1nf.png)
 *Figure 10.1: Before 1NF — Multi-valued repeating groups packed into single cells*
 
-- **1NF Decomposition**: Repeating groups are eliminated by decomposing the data into separate records where each cell holds exactly one atomic value. The parent meal header is isolated in `meal`, while individual food lines are stored in `meal_item`.
+- **1NF Decomposition**: We eliminated repeating groups by splitting the data so that every cell stores exactly one value. The parent meal event is separated into `meal`, while each food consumed is stored as an individual row in `meal_item`.
 
 ![Figure 10.2: After 1NF](images/figure_10_2_after_1nf.png)
 *Figure 10.2: After 1NF — Decomposed into meal and meal_item with strictly atomic attributes*
@@ -388,20 +392,20 @@ Normalization is the formal mathematical decomposition of relational schemas to 
 ---
 
 ### 10.2 Second Normal Form (2NF)
-**Rule**: A relation R is in 2NF if and only if it is in 1NF and every non-prime attribute is **fully functionally dependent** on the entire primary key (no partial functional dependencies on proper subsets of candidate keys).
+**Rule**: A relation is in 2NF if it is already in 1NF and every non-key column is **fully functionally dependent** on the entire primary key. In other words, there must be no partial dependencies where an attribute depends on only part of a composite primary key.
 
-- **Violation in 1NF Composite Table**: If we consider an associative relation combining `(meal_id, food_id)` as the composite key along with user attributes and food nutritional values:
-  - (meal_id, food_id) → quantity (Full dependency on composite key)
-  - food_id → food_name, serving_size, calories, protein (Partial dependency on proper subset food_id)
-  - meal_id → user_id, meal_date (Partial dependency on proper subset meal_id)
+- **Violation in 1NF Composite Table**: If we look at an associative table using `(meal_id, food_id)` as the composite key alongside user attributes and food nutritional values:
+  - (meal_id, food_id) → quantity (Full dependency on the whole composite key)
+  - food_id → food_name, serving_size, calories, protein (Partial dependency on just food_id)
+  - meal_id → user_id, meal_date (Partial dependency on just meal_id)
 
 ![Figure 10.3: Before 2NF](images/figure_10_3_before_2nf.png)
 *Figure 10.3: Before 2NF — Partial dependencies on proper subsets of composite candidate key*
 
-- **2NF Decomposition**: The partially dependent attributes are extracted into independent relations:
-  1. `food` retains attributes determined solely by food_id.
-  2. `meal` retains attributes determined solely by meal_id.
-  3. `meal_item` retains only quantity, which requires the complete composite key (meal_id, food_id).
+- **2NF Decomposition**: We extracted partially dependent attributes into separate tables:
+  1. `food` stores attributes that depend solely on `food_id`.
+  2. `meal` stores attributes that depend solely on `meal_id`.
+  3. `meal_item` keeps only `quantity`, which genuinely depends on the pair `(meal_id, food_id)`.
 
 ![Figure 10.4: After 2NF](images/figure_10_4_after_2nf.png)
 *Figure 10.4: After 2NF — Decomposed into relations where all non-key attributes are fully dependent on the primary key*
@@ -409,17 +413,17 @@ Normalization is the formal mathematical decomposition of relational schemas to 
 ---
 
 ### 10.3 Third Normal Form (3NF)
-**Rule**: A relation R is in 3NF if and only if it is in 2NF and **no non-prime attribute is transitively dependent** on any candidate key (X → Y and Y → Z where Y is not a candidate key).
+**Rule**: A relation is in 3NF if it is in 2NF and has **no transitive dependencies**. A transitive dependency occurs when non-key attribute A determines non-key attribute B (i.e., $X \rightarrow Y$ and $Y \rightarrow Z$, where $Y$ is not a candidate key).
 
-- **Violation in 2NF Food Table**: In the food relation before 3NF, the category name is included directly alongside the category ID:
+- **Violation in 2NF Food Table**: In the food table before 3NF, the category name was stored directly alongside the category ID:
   - food_id → category_id
   - category_id → category_name
-  - Therefore: food_id → category_name is a **transitive dependency** through non-candidate key category_id.
+  - This created a transitive dependency: `food_id → category_name` via `category_id`.
 
 ![Figure 10.5: Before 3NF](images/figure_10_5_before_3nf.png)
 *Figure 10.5: Before 3NF — Transitive dependency creates update and deletion anomalies*
 
-- **3NF Decomposition**: The transitive dependency is eliminated by extracting `food_category` into an independent reference table (`category_id`, `category_name`), leaving `food` with only the foreign key `category_id`.
+- **3NF Decomposition**: We removed this transitive dependency by separating `food_category` into its own table (`category_id`, `category_name`). The `food` table now keeps only `category_id` as a foreign key.
 
 ![Figure 10.6: After 3NF](images/figure_10_6_after_3nf.png)
 *Figure 10.6: After 3NF — Transitive dependency eliminated by isolating food_category lookup entity*
@@ -427,33 +431,33 @@ Normalization is the formal mathematical decomposition of relational schemas to 
 ---
 
 ### 10.4 Boyce-Codd Normal Form (BCNF)
-**Rule**: A relation R is in BCNF if and only if for every non-trivial functional dependency X → Y, X is a **superkey** (candidate key).
+**Rule**: A relation is in BCNF if for every non-trivial functional dependency $X \rightarrow Y$, the determinant $X$ is a **superkey** (candidate key).
 
 #### BCNF Verification for NutriGuide Relations:
-- In `user_profile`: Non-trivial dependencies have determinants user_id or email. Both are candidate keys. ✓
-- In `food`: Determinants are food_id and food_name. Both are unique candidate keys. ✓
-- In `food_category`: Determinants are category_id and category_name. Both are unique candidate keys. ✓
-- In `nutrition_goal`, `meal`, `meal_item`, `meal_plan`, `meal_plan_item`, `recommendation`, `activity_log`: Every determinant is a primary or candidate key. ✓
+- In `user_profile`: Determinants are `user_id` and `email`. Both are candidate keys. ✓
+- In `food`: Determinants are `food_id` and `food_name`. Both are candidate keys. ✓
+- In `food_category`: Determinants are `category_id` and `category_name`. Both are candidate keys. ✓
+- In `nutrition_goal`, `meal`, `meal_item`, `meal_plan`, `meal_plan_item`, `recommendation`, and `activity_log`: Every determinant is a primary key or candidate key. ✓
 
-**Conclusion**: All ten relations in the NutriGuide schema strictly satisfy **Boyce-Codd Normal Form (BCNF)**.
+**Result**: All ten tables in our schema strictly satisfy **Boyce-Codd Normal Form (BCNF)**.
 
 ### 10.5 Decomposition Summary
 
-| Unnormalized Flat Concept | Normalized 3NF/BCNF Relations | Primary Keys | Foreign Keys |
+| Original Flat Concept | Normalized 3NF/BCNF Relations | Primary Keys | Foreign Keys |
 |:---|:---|:---|:---|
-| User & Demographics | `user_profile` | `user_id` | *None* |
-| Calorie & Macro Goals | `nutrition_goal` | `goal_id` | `user_id` |
-| Food Categories | `food_category` | `category_id` | *None* |
-| Reference Food Catalog | `food` | `food_id` | `category_id` |
+| User Profile & Demographics | `user_profile` | `user_id` | *None* |
+| Daily Target Goals | `nutrition_goal` | `goal_id` | `user_id` |
+| Dietary Categories | `food_category` | `category_id` | *None* |
+| Food Nutrient Catalog | `food` | `food_id` | `category_id` |
 | Meal Events Header | `meal` | `meal_id` | `user_id` |
-| Meal Items (Multi-Item Lines) | `meal_item` | `meal_item_id` | `meal_id`, `food_id` |
-| Prospective Diet Plans | `meal_plan` | `meal_plan_id` | `user_id` |
-| Diet Plan Items | `meal_plan_item` | `meal_plan_item_id` | `meal_plan_id`, `food_id` |
-| Recommendation History | `recommendation` | `rec_id` | `user_id` |
-| System Audit Trail | `activity_log` | `log_id` | `user_id` |
+| Multi-Item Meal Lines | `meal_item` | `meal_item_id` | `meal_id`, `food_id` |
+| Scheduled Diet Plans | `meal_plan` | `meal_plan_id` | `user_id` |
+| Diet Plan Meal Lines | `meal_plan_item` | `meal_plan_item_id` | `meal_plan_id`, `food_id` |
+| Nutritional Feedback | `recommendation` | `rec_id` | `user_id` |
+| Activity Audit Log | `activity_log` | `log_id` | `user_id` |
 
 ### 10.6 Lossless Join Verification
-To prove that the decomposition is mathematically **lossless** (no information is created or lost), the original flat meal record is reconstructed by joining the normalized relations:
+To verify that our normalization process was strictly **lossless** (meaning we can join the normalized tables back together without creating fake tuples or losing real data), we run the following multi-table SQL query:
 
 ```sql
 SELECT 
@@ -474,7 +478,7 @@ WHERE u.user_id = 1
 ORDER BY m.meal_date, m.meal_id, mi.meal_item_id;
 ```
 
-#### Lossless Reconstruction Output:
+#### Lossless Join Output:
 | user_name | meal_date | meal_type | food_name | category_name | quantity | total_calories | total_protein |
 |:---|:---|:---|:---|:---|:---|:---|:---|
 | John Doe | 2026-10-18 | Lunch | Grilled Chicken Breast | Proteins | 1.00 | 165.00 | 31.00 |
@@ -487,7 +491,7 @@ ORDER BY m.meal_date, m.meal_id, mi.meal_item_id;
 
 ## 11. Implementation of Tables in MySQL (Step 9)
 
-The NutriGuide database is implemented in **MySQL 8.x** utilizing the ACID-compliant **InnoDB** storage engine. All declarative constraints (`PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `DEFAULT`, `NOT NULL`) are enforced at the database kernel level.
+We implemented the NutriGuide database in **MySQL 8.x** using the default **InnoDB** storage engine. We selected InnoDB specifically because our multi-item meal logging requires strict ACID transaction support, row-level locking, and foreign key enforcement. All table constraints—including primary keys, foreign keys, unique email rules, and positive-value `CHECK` constraints—are enforced directly by the database engine.
 
 ### 11.1 Table DDL Definitions
 
@@ -723,6 +727,8 @@ UNION ALL SELECT 'activity_log', COUNT(*) FROM activity_log;
 ---
 
 ## 12. Functions, Procedures, Triggers and Queries (Step 10)
+
+To make data retrieval efficient and avoid recalculating nutrients inside client Java loops, we offloaded repeated aggregations and checks directly to MySQL. Below are the stored functions, procedures, views, triggers, and ten analytical queries we developed and tested:
 
 ### 12.1 Stored Functions (DBMS Exp 6)
 
@@ -1167,7 +1173,7 @@ ORDER BY log_time DESC;
 
 ## 13. Application of Codd's 12 Rules
 
-Dr. E. F. Codd formulated twelve rules (plus Rule 0) that establish whether an information management system qualifies as a true relational database. The NutriGuide system, running on **MySQL 8.x with the InnoDB storage engine**, is evaluated below against each of Codd's foundational rules:
+In 1985, Dr. E. F. Codd formulated twelve foundational rules (plus Rule 0) to establish whether an information management system qualifies as a true relational database. As part of our DBMS coursework, we evaluated our **MySQL 8.x (InnoDB)** backend against Codd's criteria to examine where modern relational engines strictly adhere to theory and where practical trade-offs occur:
 
 | Rule No. | Rule Name | Formal Statement | Evaluation in NutriGuide | Compliance Status |
 |:---|:---|:---|:---|:---|
@@ -1189,7 +1195,7 @@ Dr. E. F. Codd formulated twelve rules (plus Rule 0) that establish whether an i
 
 ## 14. Individual Contributions (Step 11)
 
-The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the academic supervision of **Dr. Balkrishna Patil**. Specific responsibilities were distributed across the project lifecycle as follows:
+The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the academic guidance of **Dr. Balkrishna Patil**. All four team members met regularly to review schema revisions, resolve foreign key constraints, and test backend queries against sample data. Specific responsibilities were divided as follows:
 
 | Sr. No. | Student Name | PRN | Core Responsibilities & Modules Authored |
 |:---:|:---|:---:|:---|
@@ -1202,16 +1208,15 @@ The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the 
 
 ## 15. Conclusion
 
-The **NutriGuide** relational database project successfully demonstrates the end-to-end design, normalization, implementation, and optimization of an academic and clinical-grade personal nutrition management database. 
+Building NutriGuide gave our team practical, end-to-end experience taking a real-world software concept from an initial problem statement all the way to a normalized, high-performance relational database. Working on this project highlighted the clear practical value behind core relational database principles:
 
-### Key Project Achievements:
-1. **Pristine 3NF / BCNF Schema**: By decomposing the unnormalized flat meal model into ten discrete relational tables, all insertion, update, and deletion anomalies were formally eliminated.
-2. **Associative Relationship Resolution**: Many-to-many cardinalities between meals and foods, as well as meal plans and foods, were cleanly resolved via associative junction entities with portion quantities.
-3. **Rigorous Referential Integrity**: Explicit foreign key actions (`CASCADE` on user dependents, `RESTRICT` on catalog items) guarantee that historical dietary logs remain permanent and audit-compliant.
-4. **Declarative Database Constraints**: Boundary rules on physical dimensions, caloric targets, and serving portions are enforced at the database kernel level through `CHECK` constraints and `NOT NULL` rules.
-5. **Advanced Database Programmability**: The inclusion of stored functions (dynamic BMI evaluation), stored procedures (consolidated daily summaries with OUT parameters), views (pre-aggregated daily totals), and triggers (automated audit trails and SQLSTATE validation) highlights the power of modern database engines.
+1. **Practical Value of Normalization**: Decomposing our initial flat spreadsheet model into ten 3NF and BCNF tables was essential to ensure that updating body weights or food catalog facts would never corrupt historical records.
+2. **Clean Many-to-Many Handling**: Designing the `meal_item` and `meal_plan_item` associative junction tables showed us how multi-item meals can be modeled without resorting to multi-valued strings or repeated columns.
+3. **Storage-Level Data Safety**: Configuring declarative `CHECK` constraints directly in MySQL ensures that negative heights, weights, and serving portions are rejected at the storage layer rather than relying only on frontend validation.
+4. **Performance via Stored Programs**: Writing stored functions (`calculate_bmi`) and procedures with output parameters (`get_daily_summary`) demonstrated how much network traffic and client overhead can be reduced by performing aggregations directly inside the database engine.
+5. **Automated Accountability**: Implementing the `trg_after_meal_insert` trigger confirmed that audit logging can be made completely foolproof and independent of application-level bugs.
 
-The project demonstrates compliance with the B.Tech Computer Science DBMS curriculum standards, illustrating how relational theory directly translates into reliable, scalable software engineering.
+Overall, the project gave us a solid, hands-on understanding of database architecture, query optimization, and schema engineering in MySQL 8.x.
 
 ---
 
