@@ -15,6 +15,8 @@ def get_front_matter_md():
 
 ![Cover Illustration](images/cover_illustration.jpg)
 
+### **Batch: B3 | Group: GRP-1**
+
 ### **Submitted by:**
 - **Tejas Jagdish Patil** (PRN: 26070122510)
 - **Veer Parmar** (PRN: 26070122508)

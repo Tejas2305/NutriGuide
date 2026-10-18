@@ -22,9 +22,12 @@ IMG_DIR = os.path.join(REPORT_DIR, "images")
 full_md = get_front_matter_md() + "\n" + get_part2_md() + "\n" + get_part3_md()
 
 md_path = os.path.join(REPORT_DIR, "NutriGuide_DBMS_Project_Report.md")
+md_b3_path = os.path.join(REPORT_DIR, "B3_GRP-1_NutriGuide.md")
 with open(md_path, "w", encoding="utf-8") as f:
     f.write(full_md)
-print(f"Generated Markdown Report: {md_path} ({len(full_md)} chars)")
+with open(md_b3_path, "w", encoding="utf-8") as f:
+    f.write(full_md)
+print(f"Generated Markdown Reports: {md_path} and {md_b3_path} ({len(full_md)} chars)")
 
 # 2. Build HTML with embedded styles and base64 images
 def get_b64(fname):
@@ -355,6 +358,9 @@ html_template = f"""<!DOCTYPE html>
 """
 
 html_path = os.path.join(REPORT_DIR, "NutriGuide_DBMS_Project_Report.html")
+html_b3_path = os.path.join(REPORT_DIR, "B3_GRP-1_NutriGuide.html")
 with open(html_path, "w", encoding="utf-8") as f:
     f.write(html_template)
-print(f"Generated HTML Report: {html_path} ({len(html_template)} chars)")
+with open(html_b3_path, "w", encoding="utf-8") as f:
+    f.write(html_template)
+print(f"Generated HTML Reports: {html_path} and {html_b3_path} ({len(html_template)} chars)")

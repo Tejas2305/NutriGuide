@@ -19,6 +19,7 @@ REPORT_DIR = r"D:\NutriGuide\report"
 IMG_DIR = os.path.join(REPORT_DIR, "images")
 MD_FILE = os.path.join(REPORT_DIR, "NutriGuide_DBMS_Project_Report.md")
 DOCX_FILE = os.path.join(REPORT_DIR, "NutriGuide_DBMS_Project_Report.docx")
+DOCX_B3_FILE = os.path.join(REPORT_DIR, "B3_GRP-1_NutriGuide.docx")
 
 # Color Palette
 COLOR_PRIMARY_NAVY = RGBColor(0x1A, 0x36, 0x5D)   # #1A365D - Main Title & Headings
@@ -148,7 +149,7 @@ def build_docx_report():
         header = sec.header
         hp = header.paragraphs[0]
         hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        hrun = hp.add_run("SYMBIOSIS INTERNATIONAL (DEEMED UNIVERSITY) | SIT Pune | NutriGuide")
+        hrun = hp.add_run("SIT Pune | B3_GRP-1 | NutriGuide DBMS Project Report")
         hrun.font.name = "Calibri"
         hrun.font.size = Pt(8.5)
         hrun.font.italic = True
@@ -198,7 +199,7 @@ def build_docx_report():
     p_title = doc.add_paragraph()
     p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_title.paragraph_format.space_before = Pt(2)
-    p_title.paragraph_format.space_after = Pt(8)
+    p_title.paragraph_format.space_after = Pt(6)
     r_title = p_title.add_run("NutriGuide — Your Personal Nutrition Companion")
     r_title.font.name = "Calibri"
     r_title.font.size = Pt(20)
@@ -209,14 +210,24 @@ def build_docx_report():
     if os.path.exists(cover_ill):
         p_ill = doc.add_paragraph()
         p_ill.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_ill.paragraph_format.space_before = Pt(4)
-        p_ill.paragraph_format.space_after = Pt(10)
+        p_ill.paragraph_format.space_before = Pt(2)
+        p_ill.paragraph_format.space_after = Pt(6)
         run_ill = p_ill.add_run()
-        run_ill.add_picture(cover_ill, width=Inches(2.6))
+        run_ill.add_picture(cover_ill, width=Inches(2.5))
+
+    p_batch = doc.add_paragraph()
+    p_batch.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_batch.paragraph_format.space_before = Pt(4)
+    p_batch.paragraph_format.space_after = Pt(2)
+    r_batch = p_batch.add_run("Batch: B3  |  Group: GRP-1")
+    r_batch.font.name = "Calibri"
+    r_batch.font.size = Pt(11.5)
+    r_batch.font.bold = True
+    r_batch.font.color.rgb = COLOR_SECONDARY_BLUE
 
     p_sub = doc.add_paragraph()
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_sub.paragraph_format.space_before = Pt(6)
+    p_sub.paragraph_format.space_before = Pt(4)
     p_sub.paragraph_format.space_after = Pt(2)
     r_sub = p_sub.add_run("Submitted by:")
     r_sub.font.name = "Calibri"
@@ -562,7 +573,9 @@ def build_docx_report():
 
     print(f"Saving Word document: {DOCX_FILE}")
     doc.save(DOCX_FILE)
-    print(f"Successfully generated: {DOCX_FILE}")
+    print(f"Saving Word document: {DOCX_B3_FILE}")
+    doc.save(DOCX_B3_FILE)
+    print(f"Successfully generated: {DOCX_B3_FILE}")
 
 if __name__ == "__main__":
     build_docx_report()
