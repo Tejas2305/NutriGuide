@@ -41,6 +41,7 @@ Desktop.ini
 *.tmp
 *.bak
 *.swp
+~$*.docx
 
 # Local scripts, temporary text files & batches
 powershell.bat
