@@ -47,6 +47,8 @@ powershell.bat
 output.txt
 CreateDB.java
 extract_dbms.py
+__pycache__/
+*.pyc
 
 # Sensitive Database Configuration & Credentials (NEVER COMMIT SECRETS)
 src/main/resources/database.properties
