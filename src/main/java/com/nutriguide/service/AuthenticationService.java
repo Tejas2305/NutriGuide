@@ -55,13 +55,31 @@ public class AuthenticationService {
             throw new AuthenticationException("Invalid email or password.");
         }
 
-        // 3. Verify password against stored SHA-256 hash
+        // 3. Verify password against stored hash (PBKDF2 or legacy SHA-256)
         boolean matches = PasswordUtil.verifyPassword(plainPassword, user.getPasswordHash());
         if (!matches) {
             throw new AuthenticationException("Invalid email or password.");
         }
 
-        // 4. Return authenticated user
+        // 4. Automatic migration: upgrade legacy unsalted SHA-256 or lower-iteration PBKDF2 to modern PBKDF2
+        String currentHash = user.getPasswordHash();
+        if (PasswordUtil.needsRehash(currentHash)) {
+            String upgradedHash = PasswordUtil.hashPassword(plainPassword);
+            user.setPasswordHash(upgradedHash);
+            try {
+                boolean saved = userDAO.updateUser(user);
+                if (!saved) {
+                    // Update affected 0 rows; restore original hash so in-memory object accurately reflects persistence
+                    user.setPasswordHash(currentHash);
+                }
+            } catch (Exception ex) {
+                // Database update failed; revert in-memory hash to avoid falsely claiming an upgrade
+                user.setPasswordHash(currentHash);
+                // Non-fatal for authentication: login succeeds safely with verified existing credentials
+            }
+        }
+
+        // 5. Return authenticated user
         return user;
     }
 

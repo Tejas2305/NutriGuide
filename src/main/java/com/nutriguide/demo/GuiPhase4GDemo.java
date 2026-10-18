@@ -66,6 +66,8 @@ public class GuiPhase4GDemo {
         System.out.println("   NutriGuide Phase 4G: User Profile Management GUI Verification");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("GuiPhase4GDemo");
+
         ProfileFrame profileFrame = null;
         DashboardFrame dashboardFrame = null;
 

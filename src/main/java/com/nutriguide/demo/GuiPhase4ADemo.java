@@ -39,6 +39,8 @@ public class GuiPhase4ADemo {
         System.out.println("   NutriGuide Phase 4A: Java Swing GUI Verification (Login + Registration)");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("GuiPhase4ADemo");
+
         LoginFrame loginFrame = null;
         RegisterFrame registerFrame = null;
 

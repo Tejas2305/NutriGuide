@@ -1,5 +1,6 @@
 package com.nutriguide.gui;
 
+import com.nutriguide.client.NutriGuideApiClient;
 import com.nutriguide.exception.AuthenticationException;
 import com.nutriguide.exception.DatabaseOperationException;
 import com.nutriguide.exception.ResourceNotFoundException;
@@ -20,8 +21,10 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.SwingWorker;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -34,6 +37,8 @@ import java.math.BigDecimal;
  * ProfileFrame: Java Swing GUI for user profile management and credential updates.
  *
  * Demonstrates:
+ * - Decoupled client communicating with localhost REST API (with direct service fallback)
+ * - SwingWorker for background profile and password updates
  * - Exp 6: Anonymous Inner Classes for ActionListeners
  * - Exp 17-18: Swing UI Components (JFrame, JPanel, JLabel, JTextField, JPasswordField, JComboBox, JButton, JOptionPane)
  * - Layered Architecture: Delegates strictly to UserService and NutritionService
@@ -43,6 +48,7 @@ import java.math.BigDecimal;
 public class ProfileFrame extends JFrame {
 
     private final User user;
+    private final NutriGuideApiClient apiClient;
     private final UserService userService;
     private final NutritionService nutritionService;
 
@@ -66,11 +72,37 @@ public class ProfileFrame extends JFrame {
     private JButton backButton;
 
     public ProfileFrame(User user) {
-        this(user, new UserService(), new NutritionService());
+        this(user, NutriGuideApiClient.getInstance(), null, null);
     }
 
+    public ProfileFrame(User user, NutriGuideApiClient apiClient) {
+        this(user, apiClient, null, null);
+    }
+
+    /**
+     * For test and demo harness execution only: allows direct service injection
+     * without requiring a running localhost HTTP backend server.
+     *
+     * @param user Active user model
+     * @param userService Directly injected UserService for offline/integration testing
+     * @param nutritionService Directly injected NutritionService for offline/integration testing
+     */
     public ProfileFrame(User user, UserService userService, NutritionService nutritionService) {
+        this(user, null, userService, nutritionService);
+    }
+
+    /**
+     * For test and demo harness execution only: allows explicit injection of both
+     * client and service implementations.
+     *
+     * @param user Active user model
+     * @param apiClient API client implementation or null if operating in test harness mode
+     * @param userService Directly injected UserService or null for standard client mode
+     * @param nutritionService Directly injected NutritionService or null for standard client mode
+     */
+    public ProfileFrame(User user, NutriGuideApiClient apiClient, UserService userService, NutritionService nutritionService) {
         this.user = user;
+        this.apiClient = apiClient;
         this.userService = userService;
         this.nutritionService = nutritionService;
 
@@ -80,25 +112,27 @@ public class ProfileFrame extends JFrame {
 
     private void initializeUI() {
         setTitle("NutriGuide - User Profile");
-        setSize(720, 650);
-        setMinimumSize(new Dimension(680, 600));
-        setLocationRelativeTo(null);
+        UITheme.configureFrame(this, 1024, 750, 850, 620);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(0, 10));
 
         // 1. Header Panel
         JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(12, 20, 10, 20));
+        headerPanel.setBackground(UITheme.CARD_BG);
+        headerPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, UITheme.BORDER_COLOR),
+                BorderFactory.createEmptyBorder(14, 20, 12, 20)
+        ));
 
         JLabel titleLabel = new JLabel("User Profile Management");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        titleLabel.setForeground(new Color(24, 43, 73));
+        titleLabel.setFont(UITheme.FONT_TITLE);
+        titleLabel.setForeground(UITheme.PRIMARY_DARK);
         headerPanel.add(titleLabel, BorderLayout.WEST);
 
         String subtitleText = (user != null) ? "Account ID: #" + user.getUserId() : "Guest Account";
         JLabel subtitleLabel = new JLabel(subtitleText);
-        subtitleLabel.setFont(new Font("Arial", Font.PLAIN, 12));
-        subtitleLabel.setForeground(Color.DARK_GRAY);
+        subtitleLabel.setFont(UITheme.FONT_REGULAR);
+        subtitleLabel.setForeground(UITheme.TEXT_MUTED);
         headerPanel.add(subtitleLabel, BorderLayout.EAST);
 
         add(headerPanel, BorderLayout.NORTH);
@@ -106,25 +140,35 @@ public class ProfileFrame extends JFrame {
         // 2. Center Content Panel (Scrollable container for Profile Form + Password Change)
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(0, 20, 10, 20));
+        contentPanel.setBackground(UITheme.BG_COLOR);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(6, 20, 10, 20));
 
         // Section A: Personal Information Form
-        JPanel profilePanel = new JPanel(new GridLayout(7, 2, 10, 10));
-        profilePanel.setBorder(BorderFactory.createTitledBorder("Personal Profile Information"));
+        JPanel profilePanel = new JPanel(new GridLayout(7, 2, 12, 8));
+        profilePanel.setBackground(UITheme.CARD_BG);
+        profilePanel.setBorder(UITheme.createTitledCardBorder("Personal Profile Information"));
 
         nameField = new JTextField();
+        UITheme.styleTextField(nameField);
+
         emailField = new JTextField();
+        UITheme.styleTextField(emailField);
         emailField.setEditable(false);
-        emailField.setBackground(new Color(245, 245, 245));
+        emailField.setBackground(new Color(245, 247, 250));
         emailField.setToolTipText("Email address is your unique account identifier and cannot be modified.");
 
         ageField = new JTextField();
+        UITheme.styleTextField(ageField);
 
         String[] genders = {"Male", "Female", "Other"};
         genderComboBox = new JComboBox<String>(genders);
+        UITheme.styleComboBox(genderComboBox);
 
         heightField = new JTextField();
+        UITheme.styleTextField(heightField);
+
         weightField = new JTextField();
+        UITheme.styleTextField(weightField);
 
         String[] activityLevels = {
                 "Sedentary",
@@ -133,71 +177,91 @@ public class ProfileFrame extends JFrame {
                 "Very Active"
         };
         activityComboBox = new JComboBox<String>(activityLevels);
+        UITheme.styleComboBox(activityComboBox);
 
-        profilePanel.add(new JLabel("Full Name:"));
+        JLabel lName = new JLabel("Full Name:"); lName.setFont(UITheme.FONT_BOLD); lName.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lName);
         profilePanel.add(nameField);
 
-        profilePanel.add(new JLabel("Email Address (Login ID):"));
+        JLabel lEmail = new JLabel("Email Address (Login ID):"); lEmail.setFont(UITheme.FONT_BOLD); lEmail.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lEmail);
         profilePanel.add(emailField);
 
-        profilePanel.add(new JLabel("Age (years):"));
+        JLabel lAge = new JLabel("Age (years):"); lAge.setFont(UITheme.FONT_BOLD); lAge.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lAge);
         profilePanel.add(ageField);
 
-        profilePanel.add(new JLabel("Gender:"));
+        JLabel lGen = new JLabel("Gender:"); lGen.setFont(UITheme.FONT_BOLD); lGen.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lGen);
         profilePanel.add(genderComboBox);
 
-        profilePanel.add(new JLabel("Height (cm):"));
+        JLabel lHt = new JLabel("Height (cm):"); lHt.setFont(UITheme.FONT_BOLD); lHt.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lHt);
         profilePanel.add(heightField);
 
-        profilePanel.add(new JLabel("Weight (kg):"));
+        JLabel lWt = new JLabel("Weight (kg):"); lWt.setFont(UITheme.FONT_BOLD); lWt.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lWt);
         profilePanel.add(weightField);
 
-        profilePanel.add(new JLabel("Activity Level:"));
+        JLabel lAct = new JLabel("Activity Level:"); lAct.setFont(UITheme.FONT_BOLD); lAct.setForeground(UITheme.TEXT_MAIN);
+        profilePanel.add(lAct);
         profilePanel.add(activityComboBox);
 
         contentPanel.add(profilePanel);
 
         // Save Profile Button Panel
-        JPanel saveProfileBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel saveProfileBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 8));
+        saveProfileBtnPanel.setBackground(UITheme.BG_COLOR);
         saveProfileButton = new JButton("Save Profile");
-        saveProfileButton.setFont(new Font("Arial", Font.BOLD, 12));
+        UITheme.stylePrimaryButton(saveProfileButton);
         saveProfileBtnPanel.add(saveProfileButton);
         contentPanel.add(saveProfileBtnPanel);
 
         // Section B: Password Change Panel
-        JPanel passwordPanel = new JPanel(new GridLayout(3, 2, 10, 10));
-        passwordPanel.setBorder(BorderFactory.createTitledBorder("Change Password"));
+        JPanel passwordPanel = new JPanel(new GridLayout(3, 2, 12, 8));
+        passwordPanel.setBackground(UITheme.CARD_BG);
+        passwordPanel.setBorder(UITheme.createTitledCardBorder("Change Password"));
 
         currentPasswordField = new JPasswordField();
-        newPasswordField = new JPasswordField();
-        confirmPasswordField = new JPasswordField();
+        UITheme.styleTextField(currentPasswordField);
 
-        passwordPanel.add(new JLabel("Current Password:"));
+        newPasswordField = new JPasswordField();
+        UITheme.styleTextField(newPasswordField);
+
+        confirmPasswordField = new JPasswordField();
+        UITheme.styleTextField(confirmPasswordField);
+
+        JLabel lCurr = new JLabel("Current Password:"); lCurr.setFont(UITheme.FONT_BOLD); lCurr.setForeground(UITheme.TEXT_MAIN);
+        passwordPanel.add(lCurr);
         passwordPanel.add(currentPasswordField);
 
-        passwordPanel.add(new JLabel("New Password (min 6 chars):"));
+        JLabel lNew = new JLabel("New Password (min 6 chars):"); lNew.setFont(UITheme.FONT_BOLD); lNew.setForeground(UITheme.TEXT_MAIN);
+        passwordPanel.add(lNew);
         passwordPanel.add(newPasswordField);
 
-        passwordPanel.add(new JLabel("Confirm New Password:"));
+        JLabel lConf = new JLabel("Confirm New Password:"); lConf.setFont(UITheme.FONT_BOLD); lConf.setForeground(UITheme.TEXT_MAIN);
+        passwordPanel.add(lConf);
         passwordPanel.add(confirmPasswordField);
 
         contentPanel.add(passwordPanel);
 
         // Change Password Button Panel
-        JPanel changePasswordBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel changePasswordBtnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 8));
+        changePasswordBtnPanel.setBackground(UITheme.BG_COLOR);
         changePasswordButton = new JButton("Change Password");
-        changePasswordButton.setFont(new Font("Arial", Font.BOLD, 12));
+        UITheme.stylePrimaryButton(changePasswordButton);
         changePasswordBtnPanel.add(changePasswordButton);
         contentPanel.add(changePasswordBtnPanel);
 
         JScrollPane scrollPane = new JScrollPane(contentPanel);
         scrollPane.setBorder(null);
+        scrollPane.getViewport().setBackground(UITheme.BG_COLOR);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(14);
         add(scrollPane, BorderLayout.CENTER);
 
         // 3. Bottom Navigation Panel
-        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
         backButton = new JButton("Back to Dashboard");
-        bottomPanel.add(backButton);
+        JPanel bottomPanel = UITheme.createSecondaryNavBar(backButton);
         add(bottomPanel, BorderLayout.SOUTH);
 
         // Event Listeners (Anonymous Inner Classes - Java Lab Exp 6)
@@ -255,7 +319,7 @@ public class ProfileFrame extends JFrame {
         String name = nameField.getText() != null ? nameField.getText().trim() : "";
         if (name.isEmpty()) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Name cannot be empty.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Name cannot be empty.", "Validation Error");
             }
             throw new ValidationException("name", "Name cannot be empty.");
         }
@@ -266,12 +330,12 @@ public class ProfileFrame extends JFrame {
             ValidationUtil.requireValidAge(age);
         } catch (NumberFormatException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Age must be a valid integer.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Age must be a valid integer.", "Validation Error");
             }
             throw new ValidationException("age", "Age must be a valid integer.");
         } catch (ValidationException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, ex.getMessage(), "Validation Error");
             }
             throw ex;
         }
@@ -282,12 +346,12 @@ public class ProfileFrame extends JFrame {
             ValidationUtil.requireValidHeight(height);
         } catch (NumberFormatException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Height must be a valid number.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Height must be a valid number.", "Validation Error");
             }
             throw new ValidationException("height", "Height must be a valid number.");
         } catch (ValidationException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, ex.getMessage(), "Validation Error");
             }
             throw ex;
         }
@@ -298,12 +362,12 @@ public class ProfileFrame extends JFrame {
             ValidationUtil.requireValidWeight(weight);
         } catch (NumberFormatException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Weight must be a valid number.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Weight must be a valid number.", "Validation Error");
             }
             throw new ValidationException("weight", "Weight must be a valid number.");
         } catch (ValidationException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, ex.getMessage(), "Validation Error");
             }
             throw ex;
         }
@@ -311,7 +375,7 @@ public class ProfileFrame extends JFrame {
         String gender = (String) genderComboBox.getSelectedItem();
         if (gender == null || gender.trim().isEmpty()) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Please select a valid gender.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Please select a valid gender.", "Validation Error");
             }
             throw new ValidationException("gender", "Please select a valid gender.");
         }
@@ -319,7 +383,7 @@ public class ProfileFrame extends JFrame {
         String activity = (String) activityComboBox.getSelectedItem();
         if (activity == null || activity.trim().isEmpty()) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Please select a valid activity level.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Please select a valid activity level.", "Validation Error");
             }
             throw new ValidationException("activityLevel", "Please select a valid activity level.");
         }
@@ -332,19 +396,80 @@ public class ProfileFrame extends JFrame {
     }
 
     /**
-     * Saves updated profile attributes through UserService.
+     * Saves updated profile attributes through API or UserService.
      */
-    public boolean saveProfile(boolean showDialog) {
+    public boolean saveProfile(final boolean showDialog) {
         try {
             validateProfileInputs(showDialog);
+        } catch (ValidationException ex) {
+            return false;
+        }
 
-            String name = nameField.getText().trim();
-            int age = Integer.parseInt(ageField.getText().trim());
-            String gender = (String) genderComboBox.getSelectedItem();
-            BigDecimal height = new BigDecimal(heightField.getText().trim());
-            BigDecimal weight = new BigDecimal(weightField.getText().trim());
-            String activity = (String) activityComboBox.getSelectedItem();
+        final String name = nameField.getText().trim();
+        final int age = Integer.parseInt(ageField.getText().trim());
+        final String gender = (String) genderComboBox.getSelectedItem();
+        final BigDecimal height = new BigDecimal(heightField.getText().trim());
+        final BigDecimal weight = new BigDecimal(weightField.getText().trim());
+        final String activity = (String) activityComboBox.getSelectedItem();
 
+        if (apiClient != null) {
+            saveProfileButton.setEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            SwingWorker<User, Void> worker = new SwingWorker<User, Void>() {
+                @Override
+                protected User doInBackground() throws Exception {
+                    User updatedUser = new User();
+                    updatedUser.setUserId(user.getUserId());
+                    updatedUser.setEmail(user.getEmail());
+                    updatedUser.setName(name);
+                    updatedUser.setAge(age);
+                    updatedUser.setGender(gender);
+                    updatedUser.setHeightCm(height);
+                    updatedUser.setWeightKg(weight);
+                    updatedUser.setActivityLevel(activity);
+                    return apiClient.updateProfile(updatedUser);
+                }
+
+                @Override
+                protected void done() {
+                    saveProfileButton.setEnabled(true);
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        User res = get();
+                        if (res != null) {
+                            user.setName(res.getName());
+                            user.setAge(res.getAge());
+                            user.setGender(res.getGender());
+                            user.setHeightCm(res.getHeightCm());
+                            user.setWeightKg(res.getWeightKg());
+                            user.setActivityLevel(res.getActivityLevel());
+                        }
+                        if (showDialog) {
+                            UITheme.showInfo(ProfileFrame.this, "Profile updated successfully!", "Success");
+                        }
+                    } catch (Exception ex) {
+                        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                        if (showDialog) {
+                            UITheme.showError(ProfileFrame.this, "Failed to update profile: " + msg, "Error");
+                        }
+                    }
+                }
+            };
+            worker.execute();
+            return true;
+        }
+
+        if (userService == null) {
+            if (showDialog) {
+                UITheme.showError(this,
+                        "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                        "Connection Unavailable");
+            }
+            return false;
+        }
+
+        try {
             // Update in-memory user entity
             user.setName(name);
             user.setAge(age);
@@ -357,20 +482,17 @@ public class ProfileFrame extends JFrame {
             boolean updated = userService.updateProfile(user);
 
             if (updated && showDialog) {
-                JOptionPane.showMessageDialog(this, "Profile updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                UITheme.showInfo(this, "Profile updated successfully!", "Success");
             }
             return updated;
-        } catch (ValidationException ex) {
-            // Already prompted if showDialog is true
-            return false;
         } catch (ResourceNotFoundException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "User not found: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "User not found: " + ex.getMessage(), "Error");
             }
             return false;
         } catch (DatabaseOperationException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Database update error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "Database update error: " + ex.getMessage(), "Database Error");
             }
             return false;
         }
@@ -390,28 +512,28 @@ public class ProfileFrame extends JFrame {
 
         if (currentPass.trim().isEmpty()) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Current password is required.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Current password is required.", "Validation Error");
             }
             throw new ValidationException("currentPassword", "Current password is required.");
         }
 
         if (newPass.trim().isEmpty()) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "New password is required.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "New password is required.", "Validation Error");
             }
             throw new ValidationException("newPassword", "New password is required.");
         }
 
         if (newPass.length() < 6) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "New password must be at least 6 characters long.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "New password must be at least 6 characters long.", "Validation Error");
             }
             throw new ValidationException("newPassword", "New password must be at least 6 characters long.");
         }
 
         if (!newPass.equals(confirmPass)) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "New password and confirmation do not match.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "New password and confirmation do not match.", "Validation Error");
             }
             throw new ValidationException("confirmPassword", "New password and confirmation do not match.");
         }
@@ -426,14 +548,61 @@ public class ProfileFrame extends JFrame {
     /**
      * Changes user password after verifying current credentials.
      */
-    public boolean changePassword(boolean showDialog) {
+    public boolean changePassword(final boolean showDialog) {
         try {
             validatePasswordInputs(showDialog);
+        } catch (ValidationException ex) {
+            return false;
+        }
 
-            String currentPass = new String(currentPasswordField.getPassword());
-            String newPass = new String(newPasswordField.getPassword());
-            String confirmPass = new String(confirmPasswordField.getPassword());
+        final String currentPass = new String(currentPasswordField.getPassword());
+        final String newPass = new String(newPasswordField.getPassword());
+        final String confirmPass = new String(confirmPasswordField.getPassword());
 
+        if (apiClient != null) {
+            changePasswordButton.setEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() throws Exception {
+                    return apiClient.changePassword(currentPass, newPass, confirmPass);
+                }
+
+                @Override
+                protected void done() {
+                    changePasswordButton.setEnabled(true);
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        get();
+                        currentPasswordField.setText("");
+                        newPasswordField.setText("");
+                        confirmPasswordField.setText("");
+                        if (showDialog) {
+                            UITheme.showInfo(ProfileFrame.this, "Password changed successfully!", "Success");
+                        }
+                    } catch (Exception ex) {
+                        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                        if (showDialog) {
+                            UITheme.showError(ProfileFrame.this, "Failed to change password: " + msg, "Error");
+                        }
+                    }
+                }
+            };
+            worker.execute();
+            return true;
+        }
+
+        if (userService == null) {
+            if (showDialog) {
+                UITheme.showError(this,
+                        "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                        "Connection Unavailable");
+            }
+            return false;
+        }
+
+        try {
             boolean success = userService.changePassword(user.getUserId(), currentPass, newPass, confirmPass);
 
             if (success) {
@@ -442,26 +611,23 @@ public class ProfileFrame extends JFrame {
                 confirmPasswordField.setText("");
 
                 if (showDialog) {
-                    JOptionPane.showMessageDialog(this, "Password changed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    UITheme.showInfo(this, "Password changed successfully!", "Success");
                 }
             }
             return success;
         } catch (AuthenticationException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "Authentication Error", JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, ex.getMessage(), "Authentication Error");
             }
-            return false;
-        } catch (ValidationException ex) {
-            // Validation exception message already handled or thrown if calling validate directly
             return false;
         } catch (ResourceNotFoundException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "User not found: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "User not found: " + ex.getMessage(), "Error");
             }
             return false;
         } catch (DatabaseOperationException ex) {
             if (showDialog) {
-                JOptionPane.showMessageDialog(this, "Database update error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "Database update error: " + ex.getMessage(), "Database Error");
             }
             return false;
         }
@@ -475,9 +641,8 @@ public class ProfileFrame extends JFrame {
      * Disposes this frame and returns to DashboardFrame.
      */
     public void handleBackToDashboard() {
-        this.dispose();
-        DashboardFrame dashboardFrame = new DashboardFrame(user);
-        dashboardFrame.setVisible(true);
+        DashboardFrame dashboardFrame = apiClient != null ? new DashboardFrame(user, apiClient) : new DashboardFrame(user);
+        UITheme.transition(this, dashboardFrame);
     }
 
     // ========================================================================

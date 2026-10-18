@@ -1,11 +1,16 @@
 package com.nutriguide.demo;
 
+import com.nutriguide.dao.UserDAO;
 import com.nutriguide.exception.AuthenticationException;
 import com.nutriguide.exception.DatabaseOperationException;
 import com.nutriguide.exception.ResourceNotFoundException;
 import com.nutriguide.exception.ValidationException;
+import com.nutriguide.gui.DashboardFrame;
+import com.nutriguide.model.User;
+import com.nutriguide.service.AuthenticationService;
 import com.nutriguide.util.PasswordUtil;
 import com.nutriguide.util.ValidationUtil;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 
 /**
@@ -36,6 +41,7 @@ public class UtilityLayerDemo {
         testPasswordVerification();
         testValidationUtil();
         testExceptions();
+        testPasswordUpgradeAndDashboardStatus();
 
         System.out.println("\n================================================================================");
         System.out.println("   Results: " + passed + " PASSED, " + failed + " FAILED");
@@ -47,35 +53,45 @@ public class UtilityLayerDemo {
     }
 
     // ========================================================================
+    // ========================================================================
     // Section A: Password Hashing
     // ========================================================================
     private static void testPasswordHashing() {
-        System.out.println("\n--- [A] Password Hashing (SHA-256 via MessageDigest) ---");
+        System.out.println("\n--- [A] Password Hashing (Salted PBKDF2 & Legacy SHA-256) ---");
 
-        // A1: Deterministic SHA-256 hash must match MySQL SHA2('Password@123', 256)
+        // A1: Modern PBKDF2 salted hash contains algorithm prefix and 600,000 iterations (OWASP recommendation)
         String hash = PasswordUtil.hashPassword("Password@123");
-        assertCondition("A1: SHA-256 hash matches MySQL SHA2('Password@123', 256)",
-                EXPECTED_HASH.equals(hash));
-        System.out.println("    Computed hash length: " + hash.length() + " chars (expected 64)");
+        assertCondition("A1: Modern salted hash uses PBKDF2 with 600,000 iterations",
+                hash != null && hash.startsWith("PBKDF2$600000$"));
 
-        // A2: Same input always produces same hash (deterministic)
+        // A2: Format parsing validation: PBKDF2$<iterations>$<saltHex>$<hashHex>
+        String[] parts = hash != null ? hash.split("\\$") : new String[0];
+        boolean formatValid = parts.length == 4 &&
+                "PBKDF2".equals(parts[0]) &&
+                "600000".equals(parts[1]) &&
+                parts[2].length() == 32 && // 16 bytes = 32 hex chars
+                parts[3].length() == 64;   // 32 bytes = 64 hex chars
+        assertCondition("A2: Format parsing matches PBKDF2$<iterations>$<saltHex>$<hashHex> with 16-byte salt and 32-byte hash",
+                formatValid);
+
+        // A3: Cryptographic salt ensures repeated hashing produces distinct hashes
         String hash2 = PasswordUtil.hashPassword("Password@123");
-        assertCondition("A2: Repeated hashing produces identical output (deterministic)",
-                hash.equals(hash2));
+        assertCondition("A3: Repeated hashing produces unique salted digests (rainbow table defense)",
+                !hash.equals(hash2));
 
-        // A3: Different input produces different hash
+        // A4: Different input produces different hash
         String hashAdmin = PasswordUtil.hashPassword("Admin@123");
-        assertCondition("A3: Different password produces different hash",
+        assertCondition("A4: Different password produces different hash",
                 !hash.equals(hashAdmin));
 
-        // A4: Null/empty input throws IllegalArgumentException
+        // A5: Null/empty input throws IllegalArgumentException
         boolean nullRejected = false;
         try {
             PasswordUtil.hashPassword(null);
         } catch (IllegalArgumentException e) {
             nullRejected = true;
         }
-        assertCondition("A4: Null password is rejected with IllegalArgumentException", nullRejected);
+        assertCondition("A5: Null password is rejected with IllegalArgumentException", nullRejected);
 
         boolean emptyRejected = false;
         try {
@@ -83,30 +99,80 @@ public class UtilityLayerDemo {
         } catch (IllegalArgumentException e) {
             emptyRejected = true;
         }
-        assertCondition("A5: Empty password is rejected with IllegalArgumentException", emptyRejected);
+        assertCondition("A6: Empty password is rejected with IllegalArgumentException", emptyRejected);
+
+        // A7: Legacy deterministic SHA-256 hash matches MySQL SHA2('Password@123', 256)
+        String legacyHash = PasswordUtil.hashLegacySha256("Password@123");
+        assertCondition("A7: Legacy SHA-256 matches MySQL SHA2('Password@123', 256)",
+                EXPECTED_HASH.equals(legacyHash));
     }
 
     // ========================================================================
     // Section B: Password Verification
     // ========================================================================
     private static void testPasswordVerification() {
-        System.out.println("\n--- [B] Password Verification ---");
+        System.out.println("\n--- [B] Password Verification (PBKDF2 & Legacy Migration) ---");
 
-        // B1: Correct password verifies successfully
-        assertCondition("B1: Correct password verifies against stored hash",
+        // B1: Correct password verifies successfully against legacy SHA-256
+        assertCondition("B1: Correct password verifies against legacy stored hash",
                 PasswordUtil.verifyPassword("Password@123", EXPECTED_HASH));
 
-        // B2: Incorrect password does NOT verify
-        assertCondition("B2: Incorrect password is rejected",
-                !PasswordUtil.verifyPassword("WrongPassword", EXPECTED_HASH));
+        // B2: Correct password verifies against modern 600,000-iteration PBKDF2 salted hash
+        String modernHash = PasswordUtil.hashPassword("Password@123");
+        assertCondition("B2: Correct password verifies against modern 600,000-iteration PBKDF2 hash",
+                PasswordUtil.verifyPassword("Password@123", modernHash));
 
-        // B3: Null password returns false (no crash)
-        assertCondition("B3: Null password returns false (safe)",
+        // B3: Backward compatibility: Existing 10,000-iteration PBKDF2 hash verifies correctly (no lockout)
+        String existing10kHash = "PBKDF2$10000$00112233445566778899aabbccddeeff$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc";
+        assertCondition("B3: Existing 10,000-iteration PBKDF2 hash verifies successfully (preserves existing accounts)",
+                PasswordUtil.verifyPassword("Password@123", existing10kHash));
+
+        // B4: Incorrect password does NOT verify against legacy, 10k, or modern hashes
+        assertCondition("B4: Incorrect password is rejected across legacy, 10k PBKDF2, and 600k PBKDF2 hashes",
+                !PasswordUtil.verifyPassword("WrongPassword", EXPECTED_HASH) &&
+                !PasswordUtil.verifyPassword("WrongPassword", existing10kHash) &&
+                !PasswordUtil.verifyPassword("WrongPassword", modernHash));
+
+        // B5: Null/empty inputs return false safely without throwing exceptions
+        assertCondition("B5: Null password returns false (safe)",
                 !PasswordUtil.verifyPassword(null, EXPECTED_HASH));
-
-        // B4: Null stored hash returns false (no crash)
-        assertCondition("B4: Null stored hash returns false (safe)",
+        assertCondition("B6: Null stored hash returns false (safe)",
                 !PasswordUtil.verifyPassword("Password@123", null));
+        assertCondition("B7: Empty password returns false (safe)",
+                !PasswordUtil.verifyPassword("", modernHash));
+        assertCondition("B8: Empty stored hash returns false (safe)",
+                !PasswordUtil.verifyPassword("Password@123", ""));
+
+        // B9: Malformed hash parsing safety checks
+        assertCondition("B9: Malformed hash (insufficient parts) rejected safely",
+                !PasswordUtil.verifyPassword("Password@123", "PBKDF2$600000$notenoughparts"));
+        assertCondition("B10: Malformed hash (non-numeric iterations) rejected safely",
+                !PasswordUtil.verifyPassword("Password@123", "PBKDF2$invalid$00112233445566778899aabbccddeeff$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc"));
+        assertCondition("B11: Malformed hash (iterations < MIN_ITERATIONS 1,000) rejected safely",
+                !PasswordUtil.verifyPassword("Password@123", "PBKDF2$500$00112233445566778899aabbccddeeff$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc"));
+        assertCondition("B12: Malformed hash (iterations > MAX_ITERATIONS 2,000,000) rejected safely (DoS defense)",
+                !PasswordUtil.verifyPassword("Password@123", "PBKDF2$5000000$00112233445566778899aabbccddeeff$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc"));
+        assertCondition("B13: Malformed hash (invalid salt hex) rejected safely",
+                !PasswordUtil.verifyPassword("Password@123", "PBKDF2$600000$invalid_salt_hex_zzzzzzzzzzzzzzz$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc"));
+        assertCondition("B14: Malformed hash (truncated hash hex) rejected safely",
+                !PasswordUtil.verifyPassword("Password@123", "PBKDF2$600000$00112233445566778899aabbccddeeff$tooshort"));
+        assertCondition("B15: Unrecognized hash format string rejected safely",
+                !PasswordUtil.verifyPassword("Password@123", "unrecognized_arbitrary_format_string"));
+
+        // B16: Legacy migration detection via needsRehash()
+        assertCondition("B16: needsRehash() returns true for legacy unsalted SHA-256",
+                PasswordUtil.needsRehash(EXPECTED_HASH));
+        assertCondition("B17: needsRehash() returns true for null, empty, or malformed hashes",
+                PasswordUtil.needsRehash(null) && PasswordUtil.needsRehash("") && PasswordUtil.needsRehash("invalid$hash"));
+
+        // B18: Work-factor upgrade detection via needsRehash()
+        assertCondition("B18: needsRehash() returns true for lower-iteration PBKDF2 (10,000 iterations)",
+                PasswordUtil.needsRehash(existing10kHash));
+        assertCondition("B19: needsRehash() returns true for 100,000-iteration PBKDF2 hash",
+                PasswordUtil.needsRehash("PBKDF2$100000$00112233445566778899aabbccddeeff$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc"));
+        assertCondition("B20: needsRehash() returns false for target 600,000-iteration PBKDF2 hash",
+                !PasswordUtil.needsRehash(modernHash) &&
+                !PasswordUtil.needsRehash("PBKDF2$600000$00112233445566778899aabbccddeeff$86a93946654a6c68324dbd5e3af32055eefe2bd57efa540c2d27508e2a221cbc"));
     }
 
     // ========================================================================
@@ -267,6 +333,134 @@ public class UtilityLayerDemo {
                     Integer.valueOf(999).equals(e.getResourceId()));
             System.out.println("    Caught: " + e.getClass().getSimpleName()
                     + " [type=" + e.getResourceType() + ", id=" + e.getResourceId() + "]");
+        }
+    }
+
+    // ========================================================================
+    // Section E: Password Upgrade Reversion & Dashboard Partial Failure Status
+    // ========================================================================
+    private static void testPasswordUpgradeAndDashboardStatus() {
+        System.out.println("\n--- [E] Password Upgrade Save Failure & Dashboard Partial Failure Status ---");
+
+        // E1: Verify legacy SHA-256 hash needs upgrade
+        final String legacyHash = EXPECTED_HASH; // SHA-256 of 'Password@123'
+        final User userModel = new User();
+        userModel.setUserId(42);
+        userModel.setName("Test Student");
+        userModel.setEmail("student@nutriguide.com");
+        userModel.setPasswordHash(legacyHash);
+        userModel.setAge(22);
+        userModel.setGender("Female");
+        userModel.setHeightCm(new BigDecimal("165.00"));
+        userModel.setWeightKg(new BigDecimal("55.00"));
+        userModel.setActivityLevel("Moderate");
+
+        assertCondition("E1: Legacy SHA-256 hash flagged for rehash upgrade",
+                PasswordUtil.needsRehash(legacyHash));
+
+        // E2: AuthenticationService: updateUser throws DatabaseOperationException
+        UserDAO throwingDao = new UserDAO() {
+            @Override
+            public User getUserByEmail(String email) {
+                return userModel;
+            }
+
+            @Override
+            public boolean updateUser(User u) throws DatabaseOperationException {
+                throw new DatabaseOperationException("Simulated disk error or broken connection during password rehash save");
+            }
+        };
+
+        AuthenticationService authThrowing = new AuthenticationService(throwingDao);
+        User loggedIn1 = null;
+        try {
+            loggedIn1 = authThrowing.login("student@nutriguide.com", "Password@123");
+        } catch (Exception ex) {
+            assertCondition("E2: Unexpected exception thrown from login", false);
+        }
+
+        assertCondition("E2: Login succeeds even when password upgrade save fails (safe & responsive)",
+                loggedIn1 != null);
+        assertCondition("E3: In-memory hash reverts to original legacy hash when database update throws",
+                loggedIn1 != null && legacyHash.equals(loggedIn1.getPasswordHash()));
+
+        // E4: AuthenticationService: updateUser returns false (0 rows modified)
+        UserDAO zeroRowDao = new UserDAO() {
+            @Override
+            public User getUserByEmail(String email) {
+                return userModel;
+            }
+
+            @Override
+            public boolean updateUser(User u) {
+                return false;
+            }
+        };
+
+        AuthenticationService authZeroRow = new AuthenticationService(zeroRowDao);
+        User loggedIn2 = null;
+        try {
+            loggedIn2 = authZeroRow.login("student@nutriguide.com", "Password@123");
+        } catch (Exception ex) {
+            assertCondition("E4: Unexpected exception thrown from login", false);
+        }
+
+        assertCondition("E4: In-memory hash reverts to original legacy hash when updateUser returns false",
+                loggedIn2 != null && legacyHash.equals(loggedIn2.getPasswordHash()));
+
+        // E5: AuthenticationService: updateUser succeeds
+        final boolean[] saveCalled = new boolean[]{false};
+        UserDAO successfulDao = new UserDAO() {
+            @Override
+            public User getUserByEmail(String email) {
+                return userModel;
+            }
+
+            @Override
+            public boolean updateUser(User u) {
+                saveCalled[0] = true;
+                return true;
+            }
+        };
+
+        AuthenticationService authSuccess = new AuthenticationService(successfulDao);
+        User loggedIn3 = null;
+        try {
+            loggedIn3 = authSuccess.login("student@nutriguide.com", "Password@123");
+        } catch (Exception ex) {
+            assertCondition("E5: Unexpected exception thrown from login", false);
+        }
+
+        assertCondition("E5: Password hash successfully upgraded to 600,000-iteration PBKDF2 when save succeeds",
+                saveCalled[0] && loggedIn3 != null && loggedIn3.getPasswordHash().startsWith("PBKDF2$600000$"));
+
+        // E6-E10: DashboardFrame partial request failure indicators
+        DashboardFrame frame = new DashboardFrame(userModel, null, null, null);
+        try {
+            // Simulate: Profile loaded, but BMI failed
+            frame.setPartialFailureForTesting(true, false, false);
+            assertCondition("E6: BMI request failure reflected in isBmiLoadFailed()",
+                    frame.isBmiLoadFailed());
+            assertCondition("E7: BMI label displays 'BMI: Request failed' instead of 'N/A'",
+                    "BMI: Request failed".equals(frame.getBmiLabel().getText()));
+            assertCondition("E8: Dashboard header displays clear notice for BMI request failure",
+                    frame.getPartialStatusMessage() != null && frame.getPartialStatusMessage().contains("BMI calculation failed"));
+
+            // Simulate: Profile loaded, but daily summary / goal request failed
+            frame.setPartialFailureForTesting(false, true, false);
+            assertCondition("E9: Calories label displays 'Calories: Request failed' instead of empty 0 kcal",
+                    "Calories: Request failed".equals(frame.getCaloriesLabel().getText()));
+            assertCondition("E10: Goal label displays server failure instead of 'No active goal set'",
+                    "Failed to load daily goal from server.".equals(frame.getNoGoalLabel().getText()));
+
+            // Simulate: Profile loaded, but all 3 sub-requests failed
+            frame.setPartialFailureForTesting(true, true, true);
+            assertCondition("E11: Consolidated notice reports all failed sections without popup cascades",
+                    frame.getPartialStatusMessage().contains("BMI calculation failed") &&
+                    frame.getPartialStatusMessage().contains("Daily nutrition summary and goal request failed") &&
+                    frame.getPartialStatusMessage().contains("Recommendations request failed"));
+        } finally {
+            frame.dispose();
         }
     }
 

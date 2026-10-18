@@ -168,6 +168,12 @@ public class RecommendationEngineDemo {
     private static void testPersistenceAndCleanup(RecommendationService recService) throws Exception {
         System.out.println("\n--- [3] Recommendation Persistence, Retrieval & Cleanup ---");
 
+        if (!DatabaseSafetyGuard.isDisposableDatabaseConfigured()) {
+            System.out.println("  [SKIPPED] Section 3 performs recommendation persistence writes. It requires an explicitly named disposable test database.");
+            System.out.println("            Run with -Dnutriguide.test.database.name=<exact_test_db_name> matching database.properties to enable write tests.");
+            return;
+        }
+
         int userId = 1;
         LocalDate date = LocalDate.of(2026, 10, 3);
 

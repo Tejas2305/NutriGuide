@@ -42,6 +42,8 @@ public class ServiceLayerDemo {
         System.out.println("   NutriGuide Phase 3D: Service Layer & Transaction Verification");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("ServiceLayerDemo");
+
         try {
             AuthenticationService authService = new AuthenticationService();
             UserService userService = new UserService();

@@ -46,29 +46,21 @@ public class RuleBasedRecommendationEngine implements RecommendationEngine {
 
         ArrayList<Recommendation> recommendations = new ArrayList<Recommendation>();
 
-        // 1. BMI Rules
+        // 1. Evaluate BMI rule if BMI is valid
         if (bmi != null && bmi.compareTo(BigDecimal.ZERO) > 0) {
-            Recommendation bmiRec = evaluateBmiRule(userId, bmi);
-            if (bmiRec != null) {
-                recommendations.add(bmiRec);
-            }
+            recommendations.add(evaluateBmiRule(userId, bmi));
         }
 
-        // 2. Calorie Rules
-        if (actualIntake != null && targetGoal != null && targetGoal.getTargetCalories() != null
-                && targetGoal.getTargetCalories().compareTo(BigDecimal.ZERO) > 0) {
-            Recommendation calRec = evaluateCalorieRule(userId, actualIntake.getDailyCalories(), targetGoal.getTargetCalories());
-            if (calRec != null) {
-                recommendations.add(calRec);
+        // 2. Evaluate Calorie and Protein rules against daily target goal
+        if (actualIntake != null && targetGoal != null) {
+            BigDecimal targetCalories = targetGoal.getTargetCalories();
+            if (targetCalories != null && targetCalories.compareTo(BigDecimal.ZERO) > 0) {
+                recommendations.add(evaluateCalorieRule(userId, actualIntake.getDailyCalories(), targetCalories));
             }
-        }
 
-        // 3. Protein Rules
-        if (actualIntake != null && targetGoal != null && targetGoal.getTargetProtein() != null
-                && targetGoal.getTargetProtein().compareTo(BigDecimal.ZERO) > 0) {
-            Recommendation proteinRec = evaluateProteinRule(userId, actualIntake.getDailyProtein(), targetGoal.getTargetProtein());
-            if (proteinRec != null) {
-                recommendations.add(proteinRec);
+            BigDecimal targetProtein = targetGoal.getTargetProtein();
+            if (targetProtein != null && targetProtein.compareTo(BigDecimal.ZERO) > 0) {
+                recommendations.add(evaluateProteinRule(userId, actualIntake.getDailyProtein(), targetProtein));
             }
         }
 

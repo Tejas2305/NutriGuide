@@ -68,6 +68,8 @@ public class GuiPhase4DDemo {
         System.out.println("   NutriGuide Phase 4D: Nutrition Goal Management Verification");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("GuiPhase4DDemo");
+
         NutritionGoalFrame frame = null;
         DashboardFrame dashboard = null;
         NutritionGoalDAO goalDAO = new NutritionGoalDAO();

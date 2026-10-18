@@ -67,6 +67,9 @@ public class FinalIntegrationDemo {
         System.out.println("   NutriGuide Phase 5: Final End-to-End System Integration & Audit");
         System.out.println("================================================================================");
 
+        // Guard: Prevent writes against non-disposable user databases
+        DatabaseSafetyGuard.requireDisposableDatabase("FinalIntegrationDemo");
+
         // GUI Frames for lifecycle test
         LoginFrame loginFrame = null;
         DashboardFrame dashboardFrame = null;
@@ -208,7 +211,7 @@ public class FinalIntegrationDemo {
                     authenticatedUser != null && authenticatedUser.getUserId() == 1);
 
             // Step 2: Dashboard Navigation
-            dashboardFrame = new DashboardFrame(authenticatedUser);
+            dashboardFrame = new DashboardFrame(authenticatedUser, nutritionService, recService);
             assertCondition("3.2: Dashboard opens with authenticated user welcome message",
                     dashboardFrame.getWelcomeLabel().getText().contains("John Doe"));
             assertCondition("3.3: Dashboard displays calculated BMI via NutritionService",
@@ -400,10 +403,8 @@ public class FinalIntegrationDemo {
     }
 
     private static void cleanTemporaryMeals() {
-        try (Connection conn = DBConnectionFactory.getConnection();
-             Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("DELETE FROM meal WHERE meal_id > 8");
-        } catch (Exception ignored) {}
+        // Individual test meals are tracked and deleted via mealService.deleteMeal(mealId, userId).
+        // Broad deletion (e.g. meal_id > 8) removed to protect non-test rows.
     }
 
     private static void printFinalRowCounts() {

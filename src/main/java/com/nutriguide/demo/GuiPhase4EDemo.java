@@ -66,6 +66,8 @@ public class GuiPhase4EDemo {
         System.out.println("   NutriGuide Phase 4E: Rule-Based Recommendations GUI Verification");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("GuiPhase4EDemo");
+
         RecommendationFrame frame = null;
         DashboardFrame dashboard = null;
         RecommendationDAO recommendationDAO = new RecommendationDAO();

@@ -5,6 +5,8 @@ import com.nutriguide.model.DailyNutritionSummary;
 import com.nutriguide.model.NutritionGoal;
 import com.nutriguide.model.Recommendation;
 import com.nutriguide.model.User;
+import com.nutriguide.service.NutritionService;
+import com.nutriguide.service.RecommendationService;
 import com.nutriguide.service.UserService;
 
 import javax.swing.JButton;
@@ -93,7 +95,7 @@ public class GuiPhase4BDemo {
     private static DashboardFrame testDashboardInstantiation(User user) {
         System.out.println("\n--- [1] Testing DashboardFrame Instantiation & Header ---");
 
-        DashboardFrame frame = new DashboardFrame(user);
+        DashboardFrame frame = new DashboardFrame(user, new NutritionService(), new RecommendationService());
         assertCondition("1.1: DashboardFrame instantiated successfully", frame != null);
         assertCondition("1.2: Window title contains 'NutriGuide Dashboard'",
                 frame.getTitle() != null && frame.getTitle().contains("NutriGuide Dashboard"));

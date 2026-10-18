@@ -71,6 +71,8 @@ public class GuiPhase4FDemo {
         System.out.println("   NutriGuide Phase 4F: Reports & Nutrition History GUI Verification");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("GuiPhase4FDemo");
+
         ReportFrame frame = null;
         DashboardFrame dashboard = null;
         ReportService reportService = new ReportService();

@@ -102,24 +102,7 @@ public class NutritionService {
      */
     public NutritionGoal createGoal(NutritionGoal goal)
             throws ValidationException, DatabaseOperationException {
-
-        if (goal == null || goal.getUserId() == null) {
-            throw new ValidationException("goal", "Goal details and userId must not be null.");
-        }
-
-        // Validate values
-        if (!ValidationUtil.isNonNegativeBigDecimal(goal.getTargetCalories())) {
-            throw new ValidationException("targetCalories", "Target calories cannot be negative.");
-        }
-        if (!ValidationUtil.isNonNegativeBigDecimal(goal.getTargetProtein())) {
-            throw new ValidationException("targetProtein", "Target protein cannot be negative.");
-        }
-        if (!ValidationUtil.isNonNegativeBigDecimal(goal.getTargetCarbs())) {
-            throw new ValidationException("targetCarbs", "Target carbohydrates cannot be negative.");
-        }
-        if (!ValidationUtil.isNonNegativeBigDecimal(goal.getTargetFats())) {
-            throw new ValidationException("targetFats", "Target fats cannot be negative.");
-        }
+        validateNutrientValues(goal);
 
         int id = goalDAO.addGoal(goal);
         goal.setGoalId(id);
@@ -168,7 +151,7 @@ public class NutritionService {
     }
 
     /**
-     * Validates goal macronutrient and caloric values.
+     * Validates goal macronutrient and caloric values including description.
      */
     public void validateGoal(NutritionGoal goal) throws ValidationException {
         if (goal == null || goal.getUserId() == null) {
@@ -176,6 +159,16 @@ public class NutritionService {
         }
         if (goal.getDescription() == null || goal.getDescription().trim().isEmpty()) {
             throw new ValidationException("description", "Goal description cannot be empty.");
+        }
+        validateNutrientValues(goal);
+    }
+
+    /**
+     * Helper method to validate non-negative nutrient values and non-null goal details.
+     */
+    private void validateNutrientValues(NutritionGoal goal) throws ValidationException {
+        if (goal == null || goal.getUserId() == null) {
+            throw new ValidationException("goal", "Goal details and userId must not be null.");
         }
         if (goal.getTargetCalories() == null || !ValidationUtil.isNonNegativeBigDecimal(goal.getTargetCalories())) {
             throw new ValidationException("targetCalories", "Target calories cannot be negative.");

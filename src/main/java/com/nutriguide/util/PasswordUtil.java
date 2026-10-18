@@ -1,107 +1,200 @@
 package com.nutriguide.util;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
 
 /**
- * PasswordUtil: Secure password hashing and verification utility using SHA-256.
+ * PasswordUtil: Secure password hashing and verification utility.
  *
- * <h3>Why passwords are never stored in plaintext:</h3>
- * <p>If the database is compromised, stored plaintext passwords would directly expose
- * every user's credentials. Instead, we store a <b>one-way cryptographic hash</b> —
- * a fixed-length fingerprint derived from the password. The hash cannot be reversed
- * back to the original password, so even a database breach does not reveal credentials.</p>
+ * Provides:
+ * 1. Adaptive, salted PBKDF2WithHmacSHA256 password hashing for modern security.
+ * 2. Backwards-compatible verification for legacy unsalted SHA-256 hashes (matching sample_data.sql).
+ * 3. Rehash detection to enable seamless, automatic migration upon successful user login.
  *
- * <h3>How SHA-256 hashing works:</h3>
- * <ol>
- *   <li>The plaintext password bytes (UTF-8) are fed into the SHA-256 algorithm.</li>
- *   <li>SHA-256 produces a deterministic 256-bit (32-byte) digest.</li>
- *   <li>The digest is converted to a 64-character lowercase hexadecimal string for storage.</li>
- *   <li>The same input always produces the same hash — this enables verification.</li>
- * </ol>
- *
- * <h3>How password verification works:</h3>
- * <p>When a user logs in, we hash the entered password with the same algorithm and compare
- * the resulting hash against the stored hash. If they match, the password is correct.
- * We never need to decrypt or recover the original password.</p>
- *
- * <h3>Compatibility with MySQL:</h3>
- * <p>This implementation produces output identical to MySQL's {@code SHA2('input', 256)}
- * function, which is used in {@code sample_data.sql} to insert user password hashes.
- * Both produce lowercase hex strings from UTF-8 encoded input.</p>
- *
- * <p>Demonstrates Java Lab Exp 3 (static methods) and Exp 12 (user-defined packages).</p>
+ * Demonstrates:
+ * - Java Lab Exp 3 (static methods)
+ * - Exp 12 (user-defined packages)
+ * - Standard Java 8 Cryptography Architecture (JCA/JCE) without third-party dependencies.
  */
 public final class PasswordUtil {
 
-    /** The hashing algorithm used, matching MySQL's SHA2(input, 256) */
-    private static final String HASH_ALGORITHM = "SHA-256";
+    private static final String PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256";
+    private static final String LEGACY_SHA256_ALGORITHM = "SHA-256";
+    private static final String PBKDF2_PREFIX = "PBKDF2$";
+    private static final int ITERATIONS = 600000; // OWASP recommendation for PBKDF2-HMAC-SHA256
+    private static final int MIN_ITERATIONS = 1000;
+    private static final int MAX_ITERATIONS = 2000000;
+    private static final int SALT_BYTES = 16;
+    private static final int KEY_LENGTH_BITS = 256;
+    private static final int EXPECTED_HASH_HEX_LENGTH = 64; // 256 bits = 32 bytes = 64 hex chars
 
-    /**
-     * Private constructor prevents instantiation of this utility class.
-     * All methods are static — no instance is ever needed.
-     */
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private PasswordUtil() {
         // Utility class: not meant to be instantiated
     }
 
+    public static int getTargetIterations() {
+        return ITERATIONS;
+    }
+
+    public static int getMinIterations() {
+        return MIN_ITERATIONS;
+    }
+
+    public static int getMaxIterations() {
+        return MAX_ITERATIONS;
+    }
+
     /**
-     * Hashes a plaintext password using SHA-256 and returns the result
-     * as a 64-character lowercase hexadecimal string.
+     * Hashes a plaintext password using salted PBKDF2-HMAC-SHA256 with 600,000 iterations
+     * following OWASP guidelines.
+     * Returns format: PBKDF2$600000$<saltHex>$<hashHex>
      *
-     * <p>This output is directly compatible with MySQL's {@code SHA2('password', 256)}.</p>
-     *
-     * @param plainPassword The plaintext password to hash
-     * @return 64-character lowercase hex string of the SHA-256 digest
-     * @throws IllegalArgumentException if the input is null or empty
+     * @param plainPassword Plaintext password to hash
+     * @return Formatted salted hash string
      */
     public static String hashPassword(String plainPassword) {
         if (plainPassword == null || plainPassword.isEmpty()) {
             throw new IllegalArgumentException("Password cannot be null or empty.");
         }
 
-        try {
-            MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
-            byte[] hashBytes = digest.digest(plainPassword.getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(hashBytes);
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is guaranteed to be available in every Java SE implementation
-            throw new RuntimeException("SHA-256 algorithm not available", e);
-        }
+        byte[] salt = new byte[SALT_BYTES];
+        SECURE_RANDOM.nextBytes(salt);
+
+        byte[] hash = pbkdf2(plainPassword.toCharArray(), salt, ITERATIONS, KEY_LENGTH_BITS);
+        return PBKDF2_PREFIX + ITERATIONS + "$" + bytesToHex(salt) + "$" + bytesToHex(hash);
     }
 
     /**
-     * Verifies a plaintext password against a stored SHA-256 hash.
+     * Verifies a plaintext password against a stored hash string.
+     * Supports both modern PBKDF2 salted hashes and legacy unsalted SHA-256 hashes.
      *
-     * <p>Hashes the input password and compares the result to the stored hash
-     * using a constant-time comparison to prevent timing attacks.</p>
-     *
-     * @param plainPassword The plaintext password entered by the user
-     * @param storedHash    The stored SHA-256 hash from the database
-     * @return {@code true} if the password matches the stored hash, {@code false} otherwise
+     * @param plainPassword Plaintext password entered by the user
+     * @param storedHash Stored hash from database
+     * @return true if password matches stored hash, false otherwise
      */
     public static boolean verifyPassword(String plainPassword, String storedHash) {
         if (plainPassword == null || plainPassword.isEmpty() || storedHash == null || storedHash.isEmpty()) {
             return false;
         }
 
-        String computedHash = hashPassword(plainPassword);
-        return constantTimeEquals(computedHash, storedHash);
+        if (storedHash.startsWith(PBKDF2_PREFIX)) {
+            return verifyPbkdf2(plainPassword, storedHash);
+        }
+
+        // Legacy fallback: 64-character lowercase hex unsalted SHA-256 (matches sample_data.sql SHA2)
+        if (storedHash.length() == 64) {
+            String legacyHash = hashLegacySha256(plainPassword);
+            return constantTimeEquals(legacyHash, storedHash);
+        }
+
+        return false;
     }
 
     /**
-     * Converts a byte array to a lowercase hexadecimal string.
+     * Determines whether a stored hash should be upgraded to the modern PBKDF2 salted format
+     * with the current recommended work factor (600,000 iterations).
      *
-     * <p>Each byte is represented by exactly two hex characters (zero-padded).</p>
+     * Upgrades are triggered for:
+     * - Null or empty hash strings
+     * - Legacy unsalted SHA-256 hashes (matching sample_data.sql)
+     * - Older PBKDF2 hashes whose iteration count is lower than ITERATIONS (e.g. 10,000 iterations)
+     * - Malformed hash strings that cannot be safely parsed
      *
-     * @param bytes The byte array to convert
-     * @return Lowercase hex string representation
+     * @param storedHash The current password hash in the database
+     * @return true if the hash should be upgraded upon successful authentication, false otherwise
      */
+    public static boolean needsRehash(String storedHash) {
+        if (storedHash == null || storedHash.isEmpty()) {
+            return true;
+        }
+        if (!storedHash.startsWith(PBKDF2_PREFIX)) {
+            return true;
+        }
+        String[] parts = storedHash.split("\\$");
+        if (parts.length != 4) {
+            return true;
+        }
+        try {
+            int storedIterations = Integer.parseInt(parts[1]);
+            return storedIterations < ITERATIONS;
+        } catch (NumberFormatException e) {
+            return true;
+        }
+    }
+
+    private static boolean verifyPbkdf2(String plainPassword, String storedHash) {
+        String[] parts = storedHash.split("\\$");
+        if (parts.length != 4) {
+            return false;
+        }
+
+        if (!"PBKDF2".equals(parts[0])) {
+            return false;
+        }
+
+        int iterations;
+        try {
+            iterations = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+
+        if (iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) {
+            return false;
+        }
+
+        byte[] salt = hexToBytes(parts[2]);
+        if (salt == null || salt.length != SALT_BYTES) {
+            return false;
+        }
+
+        String expectedHashHex = parts[3];
+        if (expectedHashHex == null || expectedHashHex.length() != EXPECTED_HASH_HEX_LENGTH) {
+            return false;
+        }
+
+        byte[] computedHash = pbkdf2(plainPassword.toCharArray(), salt, iterations, KEY_LENGTH_BITS);
+        String computedHashHex = bytesToHex(computedHash);
+
+        return constantTimeEquals(computedHashHex, expectedHashHex);
+    }
+
+    private static byte[] pbkdf2(char[] password, byte[] salt, int iterations, int keyLength) {
+        PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyLength);
+        try {
+            SecretKeyFactory skf = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
+            return skf.generateSecret(spec).getEncoded();
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException("PBKDF2 algorithm not available in Java runtime", e);
+        } finally {
+            spec.clearPassword();
+        }
+    }
+
+    /**
+     * Legacy unsalted SHA-256 hasher for verifying pre-existing user passwords
+     * and computing deterministic digests matching MySQL SHA2(password, 256).
+     */
+    public static String hashLegacySha256(String plainPassword) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance(LEGACY_SHA256_ALGORITHM);
+            byte[] hashBytes = digest.digest(plainPassword.getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(hashBytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available", e);
+        }
+    }
+
     private static String bytesToHex(byte[] bytes) {
         StringBuilder hexString = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) {
-            // 0xff mask ensures unsigned interpretation; zero-pad to 2 characters
             String hex = Integer.toHexString(0xff & b);
             if (hex.length() == 1) {
                 hexString.append('0');
@@ -111,19 +204,25 @@ public final class PasswordUtil {
         return hexString.toString();
     }
 
-    /**
-     * Constant-time string comparison to prevent timing side-channel attacks.
-     *
-     * <p>A naive {@code String.equals()} returns early on the first mismatched character,
-     * which can leak information about how many characters matched. This method always
-     * compares every character regardless of mismatches.</p>
-     *
-     * @param a First string
-     * @param b Second string
-     * @return {@code true} if both strings are identical, {@code false} otherwise
-     */
+    private static byte[] hexToBytes(String hex) {
+        if (hex == null || hex.length() % 2 != 0) {
+            return null;
+        }
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            int high = Character.digit(hex.charAt(i), 16);
+            int low = Character.digit(hex.charAt(i + 1), 16);
+            if (high == -1 || low == -1) {
+                return null;
+            }
+            data[i / 2] = (byte) ((high << 4) + low);
+        }
+        return data;
+    }
+
     private static boolean constantTimeEquals(String a, String b) {
-        if (a.length() != b.length()) {
+        if (a == null || b == null || a.length() != b.length()) {
             return false;
         }
         int result = 0;

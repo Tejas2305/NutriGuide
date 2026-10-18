@@ -1,5 +1,6 @@
 package com.nutriguide.gui;
 
+import com.nutriguide.client.NutriGuideApiClient;
 import com.nutriguide.exception.DatabaseOperationException;
 import com.nutriguide.exception.ResourceNotFoundException;
 import com.nutriguide.exception.ValidationException;
@@ -19,10 +20,13 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingWorker;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
@@ -36,6 +40,8 @@ import java.util.ArrayList;
  * NutritionGoalFrame: Swing GUI for managing the logged-in user's nutrition goals.
  *
  * Demonstrates:
+ * - Decoupled client communicating with localhost REST API (with direct service fallback)
+ * - SwingWorker for background goal loading and persistence
  * - Java Lab Exp 6: Anonymous Inner Classes for ActionListeners & Event Handlers
  * - Java Lab Exp 17-18: Swing UI Components (JFrame, JPanel, JLabel, JTextField,
  *   JButton, JTable, DefaultTableModel, JOptionPane)
@@ -44,6 +50,7 @@ import java.util.ArrayList;
 public class NutritionGoalFrame extends JFrame {
 
     private final User user;
+    private final NutriGuideApiClient apiClient;
     private final NutritionService nutritionService;
 
     // Active Goal State
@@ -77,11 +84,35 @@ public class NutritionGoalFrame extends JFrame {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     public NutritionGoalFrame(User user) {
-        this(user, new NutritionService());
+        this(user, NutriGuideApiClient.getInstance(), null);
     }
 
+    public NutritionGoalFrame(User user, NutriGuideApiClient apiClient) {
+        this(user, apiClient, null);
+    }
+
+    /**
+     * For test and demo harness execution only: allows direct service injection
+     * without requiring a running localhost HTTP backend server.
+     *
+     * @param user Active user model
+     * @param nutritionService Directly injected NutritionService for offline/integration testing
+     */
     public NutritionGoalFrame(User user, NutritionService nutritionService) {
+        this(user, null, nutritionService);
+    }
+
+    /**
+     * For test and demo harness execution only: allows explicit injection of both
+     * client and service implementations.
+     *
+     * @param user Active user model
+     * @param apiClient API client implementation or null if operating in test harness mode
+     * @param nutritionService Directly injected NutritionService or null for standard client mode
+     */
+    public NutritionGoalFrame(User user, NutriGuideApiClient apiClient, NutritionService nutritionService) {
         this.user = user;
+        this.apiClient = apiClient;
         this.nutritionService = nutritionService;
         this.goalHistory = new ArrayList<NutritionGoal>();
 
@@ -91,26 +122,28 @@ public class NutritionGoalFrame extends JFrame {
 
     private void initializeUI() {
         setTitle("NutriGuide - Nutrition Goal");
-        setSize(720, 620);
-        setLocationRelativeTo(null);
+        UITheme.configureFrame(this, 1024, 750, 850, 620);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(0, 10));
 
         // ====================================================================
         // Section 1: Active Goal Display (North)
         // ====================================================================
         JPanel northPanel = new JPanel();
         northPanel.setLayout(new BoxLayout(northPanel, BoxLayout.Y_AXIS));
+        northPanel.setBackground(UITheme.CARD_BG);
         northPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(10, 15, 5, 15),
-                BorderFactory.createTitledBorder("Current Active Goal")
+                BorderFactory.createEmptyBorder(10, 16, 5, 16),
+                UITheme.createTitledCardBorder("Current Active Goal")
         ));
 
         activeStatusTitleLabel = new JLabel("Status: Loading...");
-        activeStatusTitleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+        activeStatusTitleLabel.setFont(UITheme.FONT_SUBTITLE);
+        activeStatusTitleLabel.setForeground(UITheme.PRIMARY_DARK);
 
         activeGoalDetailsLabel = new JLabel("Checking for active goal...");
-        activeGoalDetailsLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        activeGoalDetailsLabel.setFont(UITheme.FONT_REGULAR);
+        activeGoalDetailsLabel.setForeground(UITheme.TEXT_MAIN);
 
         northPanel.add(activeStatusTitleLabel);
         northPanel.add(activeGoalDetailsLabel);
@@ -120,33 +153,46 @@ public class NutritionGoalFrame extends JFrame {
         // Section 2: Form & History Table (Center)
         // ====================================================================
         JPanel centerPanel = new JPanel(new BorderLayout(10, 10));
-        centerPanel.setBorder(BorderFactory.createEmptyBorder(0, 15, 5, 15));
+        centerPanel.setBackground(UITheme.BG_COLOR);
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(0, 16, 5, 16));
 
         // Form Panel
         JPanel formContainer = new JPanel(new BorderLayout(5, 5));
-        formContainer.setBorder(BorderFactory.createTitledBorder("Goal Details"));
+        formContainer.setBackground(UITheme.CARD_BG);
+        formContainer.setBorder(UITheme.createTitledCardBorder("Goal Details & Target Macros"));
 
-        JPanel formGrid = new JPanel(new GridLayout(5, 2, 8, 8));
+        JPanel formGrid = new JPanel(new GridLayout(5, 2, 10, 8));
+        formGrid.setBackground(UITheme.CARD_BG);
         formGrid.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
-        formGrid.add(new JLabel("Goal Description / Name:"));
+        JLabel lDesc = new JLabel("Goal Description / Name:"); lDesc.setFont(UITheme.FONT_BOLD); lDesc.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lDesc);
         descriptionField = new JTextField();
+        UITheme.styleTextField(descriptionField);
         formGrid.add(descriptionField);
 
-        formGrid.add(new JLabel("Target Calories (kcal):"));
+        JLabel lCal = new JLabel("Target Calories (kcal):"); lCal.setFont(UITheme.FONT_BOLD); lCal.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lCal);
         caloriesField = new JTextField();
+        UITheme.styleTextField(caloriesField);
         formGrid.add(caloriesField);
 
-        formGrid.add(new JLabel("Target Protein (g):"));
+        JLabel lProt = new JLabel("Target Protein (g):"); lProt.setFont(UITheme.FONT_BOLD); lProt.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lProt);
         proteinField = new JTextField();
+        UITheme.styleTextField(proteinField);
         formGrid.add(proteinField);
 
-        formGrid.add(new JLabel("Target Carbohydrates (g):"));
+        JLabel lCarb = new JLabel("Target Carbohydrates (g):"); lCarb.setFont(UITheme.FONT_BOLD); lCarb.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lCarb);
         carbsField = new JTextField();
+        UITheme.styleTextField(carbsField);
         formGrid.add(carbsField);
 
-        formGrid.add(new JLabel("Target Fat (g):"));
+        JLabel lFat = new JLabel("Target Fat (g):"); lFat.setFont(UITheme.FONT_BOLD); lFat.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lFat);
         fatField = new JTextField();
+        UITheme.styleTextField(fatField);
         formGrid.add(fatField);
 
         formContainer.add(formGrid, BorderLayout.CENTER);
@@ -154,7 +200,8 @@ public class NutritionGoalFrame extends JFrame {
 
         // History Table Panel
         JPanel tableContainer = new JPanel(new BorderLayout(5, 5));
-        tableContainer.setBorder(BorderFactory.createTitledBorder("Goal History (Select row to view/update)"));
+        tableContainer.setBackground(UITheme.CARD_BG);
+        tableContainer.setBorder(UITheme.createTitledCardBorder("Goal History (Select row to view/update)"));
 
         String[] columnNames = new String[]{
                 "Goal ID", "Description", "Calories", "Protein", "Carbs", "Fat", "Active", "Created At"
@@ -167,6 +214,7 @@ public class NutritionGoalFrame extends JFrame {
         };
 
         historyTable = new JTable(historyTableModel);
+        UITheme.styleTable(historyTable);
         historyTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         historyTable.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
             @Override
@@ -178,17 +226,15 @@ public class NutritionGoalFrame extends JFrame {
         });
 
         JScrollPane scrollPane = new JScrollPane(historyTable);
+        scrollPane.getViewport().setBackground(Color.WHITE);
         tableContainer.add(scrollPane, BorderLayout.CENTER);
         centerPanel.add(tableContainer, BorderLayout.CENTER);
 
         add(centerPanel, BorderLayout.CENTER);
 
         // ====================================================================
-        // Section 3: Action Buttons (South)
+        // Section 3: Action Buttons & Navigation (South)
         // ====================================================================
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 10, 10));
-
         saveGoalButton = new JButton("Save Goal");
         updateGoalButton = new JButton("Update Goal");
         deactivateGoalButton = new JButton("Deactivate Goal");
@@ -196,12 +242,20 @@ public class NutritionGoalFrame extends JFrame {
         clearButton = new JButton("Clear");
         backButton = new JButton("Back to Dashboard");
 
-        buttonPanel.add(saveGoalButton);
-        buttonPanel.add(updateGoalButton);
-        buttonPanel.add(deactivateGoalButton);
-        buttonPanel.add(refreshButton);
-        buttonPanel.add(clearButton);
-        buttonPanel.add(backButton);
+        UITheme.stylePrimaryButton(saveGoalButton);
+        UITheme.stylePrimaryButton(updateGoalButton);
+        UITheme.styleDangerButton(deactivateGoalButton);
+        UITheme.styleSecondaryButton(refreshButton);
+        UITheme.styleSecondaryButton(clearButton);
+
+        JPanel buttonPanel = UITheme.createSecondaryNavBar(
+                backButton,
+                saveGoalButton,
+                updateGoalButton,
+                deactivateGoalButton,
+                refreshButton,
+                clearButton
+        );
         add(buttonPanel, BorderLayout.SOUTH);
 
         // ====================================================================
@@ -268,6 +322,37 @@ public class NutritionGoalFrame extends JFrame {
             return;
         }
 
+        if (apiClient != null) {
+            SwingWorker<NutritionGoal, Void> worker = new SwingWorker<NutritionGoal, Void>() {
+                @Override
+                protected NutritionGoal doInBackground() throws Exception {
+                    return apiClient.getActiveGoal();
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        activeGoal = get();
+                        updateActiveGoalDisplay(activeGoal);
+                        if (selectedGoal == null && activeGoal != null) {
+                            populateForm(activeGoal);
+                        }
+                    } catch (Exception e) {
+                        activeGoal = null;
+                        updateActiveGoalDisplay(null);
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (nutritionService == null) {
+            this.activeGoal = null;
+            updateActiveGoalDisplay(null);
+            return;
+        }
+
         try {
             this.activeGoal = nutritionService.getActiveGoal(user.getUserId());
             updateActiveGoalDisplay(this.activeGoal);
@@ -321,6 +406,54 @@ public class NutritionGoalFrame extends JFrame {
             return;
         }
 
+        if (apiClient != null) {
+            SwingWorker<ArrayList<NutritionGoal>, Void> worker = new SwingWorker<ArrayList<NutritionGoal>, Void>() {
+                @Override
+                protected ArrayList<NutritionGoal> doInBackground() throws Exception {
+                    return apiClient.getGoalHistory();
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        goalHistory = get();
+                        if (goalHistory == null) {
+                            goalHistory = new ArrayList<NutritionGoal>();
+                        }
+                        historyTableModel.setRowCount(0);
+                        for (int i = 0; i < goalHistory.size(); i++) {
+                            NutritionGoal g = goalHistory.get(i);
+                            String createdStr = g.getCreatedAt() != null
+                                    ? g.getCreatedAt().format(DATE_TIME_FORMATTER)
+                                    : "N/A";
+                            String activeStr = (g.getIsActive() != null && g.getIsActive()) ? "Yes" : "No";
+
+                            historyTableModel.addRow(new Object[]{
+                                    g.getGoalId(),
+                                    g.getDescription(),
+                                    formatDecimal(g.getTargetCalories()),
+                                    formatDecimal(g.getTargetProtein()),
+                                    formatDecimal(g.getTargetCarbs()),
+                                    formatDecimal(g.getTargetFats()),
+                                    activeStr,
+                                    createdStr
+                            });
+                        }
+                    } catch (Exception e) {
+                        goalHistory = new ArrayList<NutritionGoal>();
+                        String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                        UITheme.showError(NutritionGoalFrame.this, "Error while loading goal history: " + msg, "Error");
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (nutritionService == null) {
+            return;
+        }
+
         try {
             this.goalHistory = nutritionService.getGoalHistory(user.getUserId());
             if (this.goalHistory == null) {
@@ -347,10 +480,7 @@ public class NutritionGoalFrame extends JFrame {
             }
         } catch (DatabaseOperationException e) {
             this.goalHistory = new ArrayList<NutritionGoal>();
-            JOptionPane.showMessageDialog(this,
-                    "Database error while loading goal history: " + e.getMessage(),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Database error while loading goal history: " + e.getMessage(), "Error");
         }
     }
 
@@ -394,46 +524,72 @@ public class NutritionGoalFrame extends JFrame {
     }
 
     /**
-     * Validates and saves a new active goal through NutritionService.
+     * Validates and saves a new active goal through API or NutritionService.
      * Transactionally deactivates old active goals and preserves history.
      */
     public void handleSaveGoal() {
-        NutritionGoal goalToSave = validateAndBuildGoalFromForm();
+        final NutritionGoal goalToSave = validateAndBuildGoalFromForm();
         if (goalToSave == null) {
+            return;
+        }
+
+        if (apiClient != null) {
+            saveGoalButton.setEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            SwingWorker<NutritionGoal, Void> worker = new SwingWorker<NutritionGoal, Void>() {
+                @Override
+                protected NutritionGoal doInBackground() throws Exception {
+                    return apiClient.saveNewActiveGoal(goalToSave);
+                }
+
+                @Override
+                protected void done() {
+                    saveGoalButton.setEnabled(true);
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        NutritionGoal saved = get();
+                        UITheme.showInfo(NutritionGoalFrame.this,
+                                "New active nutrition goal #" + saved.getGoalId() + " saved successfully!",
+                                "Success");
+                        selectedGoal = saved;
+                        refreshData();
+                    } catch (Exception e) {
+                        String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                        UITheme.showError(NutritionGoalFrame.this, "Failed to save nutrition goal: " + msg, "Error");
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (nutritionService == null) {
+            UITheme.showError(this,
+                    "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                    "Connection Unavailable");
             return;
         }
 
         try {
             NutritionGoal saved = nutritionService.saveNewActiveGoal(goalToSave);
-            JOptionPane.showMessageDialog(this,
-                    "New active nutrition goal #" + saved.getGoalId() + " saved successfully!",
-                    "Success",
-                    JOptionPane.INFORMATION_MESSAGE);
+            UITheme.showInfo(this, "New active nutrition goal #" + saved.getGoalId() + " saved successfully!", "Success");
             this.selectedGoal = saved;
             refreshData();
         } catch (ValidationException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Validation Error: " + e.getMessage(),
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Validation Error: " + e.getMessage(), "Validation Error");
         } catch (DatabaseOperationException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Failed to save nutrition goal: " + e.getMessage(),
-                    "Database Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Failed to save nutrition goal: " + e.getMessage(), "Database Error");
         }
     }
 
     /**
-     * Validates and updates the selected or active goal through NutritionService.
+     * Validates and updates the selected or active goal through API or NutritionService.
      */
     public void handleUpdateGoal() {
-        NutritionGoal targetGoal = selectedGoal != null ? selectedGoal : activeGoal;
+        final NutritionGoal targetGoal = selectedGoal != null ? selectedGoal : activeGoal;
         if (targetGoal == null || targetGoal.getGoalId() == null) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select a goal from the history table or load an active goal to update.",
-                    "No Goal Selected",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please select a goal from the history table or load an active goal to update.", "No Goal Selected");
             return;
         }
 
@@ -448,35 +604,57 @@ public class NutritionGoalFrame extends JFrame {
         targetGoal.setTargetCarbs(formGoal.getTargetCarbs());
         targetGoal.setTargetFats(formGoal.getTargetFats());
 
+        if (apiClient != null) {
+            updateGoalButton.setEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() throws Exception {
+                    return apiClient.updateGoal(targetGoal);
+                }
+
+                @Override
+                protected void done() {
+                    updateGoalButton.setEnabled(true);
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        get();
+                        UITheme.showInfo(NutritionGoalFrame.this,
+                                "Nutrition goal #" + targetGoal.getGoalId() + " updated successfully!",
+                                "Success");
+                        refreshData();
+                    } catch (Exception e) {
+                        String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                        UITheme.showError(NutritionGoalFrame.this, "Failed to update nutrition goal: " + msg, "Error");
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (nutritionService == null) {
+            UITheme.showError(this,
+                    "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                    "Connection Unavailable");
+            return;
+        }
+
         try {
             boolean updated = nutritionService.updateGoalForUser(targetGoal, user.getUserId());
             if (updated) {
-                JOptionPane.showMessageDialog(this,
-                        "Nutrition goal #" + targetGoal.getGoalId() + " updated successfully!",
-                        "Success",
-                        JOptionPane.INFORMATION_MESSAGE);
+                UITheme.showInfo(this, "Nutrition goal #" + targetGoal.getGoalId() + " updated successfully!", "Success");
                 refreshData();
             } else {
-                JOptionPane.showMessageDialog(this,
-                        "Failed to update nutrition goal #" + targetGoal.getGoalId(),
-                        "Update Failed",
-                        JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "Failed to update nutrition goal #" + targetGoal.getGoalId(), "Update Failed");
             }
         } catch (ValidationException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Validation Error: " + e.getMessage(),
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Validation Error: " + e.getMessage(), "Validation Error");
         } catch (ResourceNotFoundException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Goal not found: " + e.getMessage(),
-                    "Not Found",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Goal not found: " + e.getMessage(), "Not Found");
         } catch (DatabaseOperationException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Database Error: " + e.getMessage(),
-                    "Database Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Database Error: " + e.getMessage(), "Database Error");
         }
     }
 
@@ -485,21 +663,15 @@ public class NutritionGoalFrame extends JFrame {
      * Preserves historical record in database.
      */
     public void handleDeactivateGoal() {
-        NutritionGoal goalToDeactivate = selectedGoal != null ? selectedGoal : activeGoal;
+        final NutritionGoal goalToDeactivate = selectedGoal != null ? selectedGoal : activeGoal;
 
         if (goalToDeactivate == null || goalToDeactivate.getGoalId() == null) {
-            JOptionPane.showMessageDialog(this,
-                    "No active or selected nutrition goal to deactivate.",
-                    "Deactivate Goal",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "No active or selected nutrition goal to deactivate.", "Deactivate Goal");
             return;
         }
 
         if (goalToDeactivate.getIsActive() != null && !goalToDeactivate.getIsActive()) {
-            JOptionPane.showMessageDialog(this,
-                    "Goal #" + goalToDeactivate.getGoalId() + " is already inactive.",
-                    "Already Inactive",
-                    JOptionPane.INFORMATION_MESSAGE);
+            UITheme.showInfo(this, "Goal #" + goalToDeactivate.getGoalId() + " is already inactive.", "Already Inactive");
             return;
         }
 
@@ -514,36 +686,59 @@ public class NutritionGoalFrame extends JFrame {
             return;
         }
 
+        if (apiClient != null) {
+            deactivateGoalButton.setEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() throws Exception {
+                    return apiClient.deactivateGoal(goalToDeactivate.getGoalId());
+                }
+
+                @Override
+                protected void done() {
+                    deactivateGoalButton.setEnabled(true);
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        get();
+                        UITheme.showInfo(NutritionGoalFrame.this,
+                                "Goal #" + goalToDeactivate.getGoalId() + " deactivated successfully.",
+                                "Success");
+                        selectedGoal = null;
+                        refreshData();
+                    } catch (Exception e) {
+                        String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                        UITheme.showError(NutritionGoalFrame.this, "Could not deactivate goal: " + msg, "Error");
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (nutritionService == null) {
+            UITheme.showError(this,
+                    "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                    "Connection Unavailable");
+            return;
+        }
+
         try {
             boolean deactivated = nutritionService.deactivateGoalForUser(goalToDeactivate.getGoalId(), user.getUserId());
             if (deactivated) {
-                JOptionPane.showMessageDialog(this,
-                        "Goal #" + goalToDeactivate.getGoalId() + " deactivated successfully.",
-                        "Success",
-                        JOptionPane.INFORMATION_MESSAGE);
+                UITheme.showInfo(this, "Goal #" + goalToDeactivate.getGoalId() + " deactivated successfully.", "Success");
                 this.selectedGoal = null;
                 refreshData();
             } else {
-                JOptionPane.showMessageDialog(this,
-                        "Could not deactivate goal #" + goalToDeactivate.getGoalId(),
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "Could not deactivate goal #" + goalToDeactivate.getGoalId(), "Error");
             }
         } catch (ValidationException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Unauthorized or Invalid: " + e.getMessage(),
-                    "Validation Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Unauthorized or Invalid: " + e.getMessage(), "Validation Error");
         } catch (ResourceNotFoundException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Goal not found: " + e.getMessage(),
-                    "Not Found",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Goal not found: " + e.getMessage(), "Not Found");
         } catch (DatabaseOperationException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Database Error: " + e.getMessage(),
-                    "Database Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Database Error: " + e.getMessage(), "Database Error");
         }
     }
 
@@ -554,10 +749,7 @@ public class NutritionGoalFrame extends JFrame {
     private NutritionGoal validateAndBuildGoalFromForm() {
         String desc = descriptionField.getText() != null ? descriptionField.getText().trim() : "";
         if (desc.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Goal description / name cannot be empty.",
-                    "Input Validation",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Goal description / name cannot be empty.", "Input Validation");
             descriptionField.requestFocus();
             return null;
         }
@@ -566,27 +758,18 @@ public class NutritionGoalFrame extends JFrame {
         try {
             String calText = caloriesField.getText() != null ? caloriesField.getText().trim() : "";
             if (calText.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "Target calories cannot be empty.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target calories cannot be empty.", "Input Validation");
                 caloriesField.requestFocus();
                 return null;
             }
             calories = new BigDecimal(calText);
             if (!ValidationUtil.isNonNegativeBigDecimal(calories)) {
-                JOptionPane.showMessageDialog(this,
-                        "Target calories must be greater than or equal to 0.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target calories must be greater than or equal to 0.", "Input Validation");
                 caloriesField.requestFocus();
                 return null;
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter a valid numeric value for target calories.",
-                    "Input Validation",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please enter a valid numeric value for target calories.", "Input Validation");
             caloriesField.requestFocus();
             return null;
         }
@@ -595,27 +778,18 @@ public class NutritionGoalFrame extends JFrame {
         try {
             String protText = proteinField.getText() != null ? proteinField.getText().trim() : "";
             if (protText.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "Target protein cannot be empty.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target protein cannot be empty.", "Input Validation");
                 proteinField.requestFocus();
                 return null;
             }
             protein = new BigDecimal(protText);
             if (!ValidationUtil.isNonNegativeBigDecimal(protein)) {
-                JOptionPane.showMessageDialog(this,
-                        "Target protein must be greater than or equal to 0.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target protein must be greater than or equal to 0.", "Input Validation");
                 proteinField.requestFocus();
                 return null;
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter a valid numeric value for target protein.",
-                    "Input Validation",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please enter a valid numeric value for target protein.", "Input Validation");
             proteinField.requestFocus();
             return null;
         }
@@ -624,27 +798,18 @@ public class NutritionGoalFrame extends JFrame {
         try {
             String carbsText = carbsField.getText() != null ? carbsField.getText().trim() : "";
             if (carbsText.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "Target carbohydrates cannot be empty.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target carbohydrates cannot be empty.", "Input Validation");
                 carbsField.requestFocus();
                 return null;
             }
             carbs = new BigDecimal(carbsText);
             if (!ValidationUtil.isNonNegativeBigDecimal(carbs)) {
-                JOptionPane.showMessageDialog(this,
-                        "Target carbohydrates must be greater than or equal to 0.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target carbohydrates must be greater than or equal to 0.", "Input Validation");
                 carbsField.requestFocus();
                 return null;
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter a valid numeric value for target carbohydrates.",
-                    "Input Validation",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please enter a valid numeric value for target carbohydrates.", "Input Validation");
             carbsField.requestFocus();
             return null;
         }
@@ -653,27 +818,18 @@ public class NutritionGoalFrame extends JFrame {
         try {
             String fatText = fatField.getText() != null ? fatField.getText().trim() : "";
             if (fatText.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "Target fat cannot be empty.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target fat cannot be empty.", "Input Validation");
                 fatField.requestFocus();
                 return null;
             }
             fat = new BigDecimal(fatText);
             if (!ValidationUtil.isNonNegativeBigDecimal(fat)) {
-                JOptionPane.showMessageDialog(this,
-                        "Target fat must be greater than or equal to 0.",
-                        "Input Validation",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Target fat must be greater than or equal to 0.", "Input Validation");
                 fatField.requestFocus();
                 return null;
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter a valid numeric value for target fat.",
-                    "Input Validation",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please enter a valid numeric value for target fat.", "Input Validation");
             fatField.requestFocus();
             return null;
         }
@@ -688,9 +844,8 @@ public class NutritionGoalFrame extends JFrame {
      * Disposes this frame and returns to DashboardFrame.
      */
     public void handleBackToDashboard() {
-        this.dispose();
-        DashboardFrame dashboardFrame = new DashboardFrame(user);
-        dashboardFrame.setVisible(true);
+        DashboardFrame dashboardFrame = apiClient != null ? new DashboardFrame(user, apiClient) : new DashboardFrame(user);
+        UITheme.transition(this, dashboardFrame);
     }
 
     private String formatDecimal(BigDecimal val) {

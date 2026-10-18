@@ -62,6 +62,8 @@ public class GuiPhase4CDemo {
         System.out.println("   NutriGuide Phase 4C: Meal Logging & Food Selection Verification");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("GuiPhase4CDemo");
+
         MealLogFrame frame = null;
         DashboardFrame dashboard = null;
 

@@ -1,11 +1,14 @@
 package com.nutriguide.gui;
 
+import com.nutriguide.client.ApiClientException;
+import com.nutriguide.client.NutriGuideApiClient;
 import com.nutriguide.exception.DatabaseOperationException;
 import com.nutriguide.exception.ValidationException;
 import com.nutriguide.model.Food;
 import com.nutriguide.model.Meal;
 import com.nutriguide.model.MealItem;
 import com.nutriguide.model.User;
+import com.nutriguide.server.MealHandler;
 import com.nutriguide.service.FoodService;
 import com.nutriguide.service.MealService;
 
@@ -20,8 +23,11 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
@@ -38,15 +44,15 @@ import java.util.ArrayList;
  * item calculation, transactional meal persistence, and existing meal management.
  *
  * Demonstrates:
+ * - Decoupled client communicating with localhost REST API (with direct service fallback)
+ * - SwingWorker for background meal loading and persistence
  * - Java Lab Exp 6: Anonymous Inner Classes for ActionListeners
- * - Java Lab Exp 17-18: Swing UI Components (JFrame, JPanel, JLabel, JTextField, JComboBox,
- *   JButton, JTable, DefaultTableModel, JOptionPane)
- * - Java Lab Exp 24: GUI-to-Service JDBC Transaction Integration
- *   (Strictly NO SQL, Connection, PreparedStatement, or ResultSet inside the GUI)
+ * - Java Lab Exp 17-18: Swing UI Components
  */
 public class MealLogFrame extends JFrame {
 
     private final User user;
+    private final NutriGuideApiClient apiClient;
     private final MealService mealService;
     private final FoodService foodService;
 
@@ -86,89 +92,192 @@ public class MealLogFrame extends JFrame {
     private JButton deleteMealButton;
 
     public MealLogFrame(User user) {
-        this(user, new MealService(), new FoodService());
+        this(user, NutriGuideApiClient.getInstance(), null, null);
     }
 
+    public MealLogFrame(User user, NutriGuideApiClient apiClient) {
+        this(user, apiClient, null, null);
+    }
+
+    /**
+     * For test and demo harness execution only: allows direct service injection
+     * without requiring a running localhost HTTP backend server.
+     *
+     * @param user Active user model
+     * @param mealService Directly injected MealService for offline/integration testing
+     * @param foodService Directly injected FoodService for offline/integration testing
+     */
     public MealLogFrame(User user, MealService mealService, FoodService foodService) {
+        this(user, null, mealService, foodService);
+    }
+
+    /**
+     * For test and demo harness execution only: allows explicit injection of both
+     * client and service implementations.
+     *
+     * @param user Active user model
+     * @param apiClient API client implementation or null if operating in test harness mode
+     * @param mealService Directly injected MealService or null for standard client mode
+     * @param foodService Directly injected FoodService or null for standard client mode
+     */
+    public MealLogFrame(User user, NutriGuideApiClient apiClient, MealService mealService, FoodService foodService) {
         this.user = user;
+        this.apiClient = apiClient;
         this.mealService = mealService;
         this.foodService = foodService;
         this.currentMealItems = new ArrayList<MealItem>();
         this.currentItemFoods = new ArrayList<Food>();
 
-        loadFoodCatalog();
+        this.availableFoods = new ArrayList<Food>();
         initializeUI();
+        loadFoodCatalog();
         refreshExistingMeals();
     }
 
     /**
-     * Loads available foods from the service layer.
+     * Loads available foods from the API or service layer.
      */
     private void loadFoodCatalog() {
-        try {
-            this.availableFoods = foodService.getAllFoods();
-        } catch (DatabaseOperationException e) {
-            this.availableFoods = new ArrayList<Food>();
-            JOptionPane.showMessageDialog(this,
-                    "Failed to load foods from database: " + e.getMessage(),
-                    "Database Error",
-                    JOptionPane.ERROR_MESSAGE);
+        if (apiClient != null) {
+            foodComboBox.removeAllItems();
+            foodComboBox.addItem("Loading food catalog...");
+            foodComboBox.setEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            SwingWorker<ArrayList<Food>, Void> worker = new SwingWorker<ArrayList<Food>, Void>() {
+                @Override
+                protected ArrayList<Food> doInBackground() throws Exception {
+                    return apiClient.getAllFoods();
+                }
+
+                @Override
+                protected void done() {
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        ArrayList<Food> foods = get();
+                        availableFoods = foods != null ? foods : new ArrayList<Food>();
+                        foodComboBox.removeAllItems();
+                        if (availableFoods.isEmpty()) {
+                            foodComboBox.addItem("No foods available");
+                            foodComboBox.setEnabled(false);
+                            foodNutrientsLabel.setText("The food catalog is empty. Add foods to the database before logging meals.");
+                        } else {
+                            for (Food food : availableFoods) {
+                                foodComboBox.addItem(food.getFoodName());
+                            }
+                            foodComboBox.setEnabled(true);
+                        }
+                        updateFoodPreview();
+                    } catch (Exception ex) {
+                        availableFoods = new ArrayList<Food>();
+                        foodComboBox.removeAllItems();
+                        foodComboBox.addItem("Food catalog unavailable");
+                        foodComboBox.setEnabled(false);
+                        foodNutrientsLabel.setText("Could not load the food catalog. Check that the backend and database are available.");
+                        String message = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                        UITheme.showError(MealLogFrame.this,
+                                "Could not load foods: " + message,
+                                "Food Catalog Unavailable");
+                    }
+                }
+            };
+            worker.execute();
+            return;
         }
+
+        try {
+            if (foodService != null) {
+                this.availableFoods = foodService.getAllFoods();
+            } else {
+                this.availableFoods = new ArrayList<Food>();
+            }
+            populateFoodComboBox();
+        } catch (Exception e) {
+            this.availableFoods = new ArrayList<Food>();
+            populateFoodComboBox();
+            UITheme.showError(this, "Failed to load foods: " + e.getMessage(), "Food Catalog Error");
+        }
+    }
+
+    private void populateFoodComboBox() {
+        foodComboBox.removeAllItems();
+        if (availableFoods == null || availableFoods.isEmpty()) {
+            foodComboBox.addItem("No foods available");
+            foodComboBox.setEnabled(false);
+            foodNutrientsLabel.setText("The food catalog is empty. Add foods to the database before logging meals.");
+            return;
+        }
+
+        for (Food food : availableFoods) {
+            foodComboBox.addItem(food.getFoodName());
+        }
+        foodComboBox.setEnabled(true);
+        updateFoodPreview();
     }
 
     private void initializeUI() {
         setTitle("NutriGuide - Meal Log");
-        setSize(880, 680);
-        setLocationRelativeTo(null);
+        UITheme.configureFrame(this, 1024, 750, 850, 620);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(0, 10));
 
         // ====================================================================
         // Top Section: Meal Form & Food Selection (North)
         // ====================================================================
         JPanel northPanel = new JPanel();
         northPanel.setLayout(new BoxLayout(northPanel, BoxLayout.Y_AXIS));
-        northPanel.setBorder(BorderFactory.createEmptyBorder(10, 15, 5, 15));
+        northPanel.setBackground(UITheme.BG_COLOR);
+        northPanel.setBorder(BorderFactory.createEmptyBorder(10, 16, 5, 16));
 
         // Row 1: Header Label
-        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        titlePanel.setBackground(UITheme.BG_COLOR);
         JLabel titleLabel = new JLabel("Log Meal & Food Items for " + (user != null ? user.getName() : "User"));
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+        titleLabel.setFont(UITheme.FONT_TITLE);
+        titleLabel.setForeground(UITheme.PRIMARY_DARK);
         titlePanel.add(titleLabel);
         northPanel.add(titlePanel);
 
         // Row 2: Form Inputs Panel (Date, Meal Type, Food, Quantity)
-        JPanel formGrid = new JPanel(new GridLayout(2, 4, 10, 8));
-        formGrid.setBorder(BorderFactory.createTitledBorder("Meal Details & Food Item Selection"));
+        JPanel formGrid = new JPanel(new GridLayout(2, 4, 12, 8));
+        formGrid.setBackground(UITheme.CARD_BG);
+        formGrid.setBorder(UITheme.createTitledCardBorder("Meal Details & Food Item Selection"));
 
-        formGrid.add(new JLabel("Meal Date (yyyy-MM-dd):"));
+        JLabel lDate = new JLabel("Meal Date (yyyy-MM-dd):"); lDate.setFont(UITheme.FONT_BOLD); lDate.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lDate);
         dateField = new JTextField(LocalDate.now().toString());
+        UITheme.styleTextField(dateField);
         formGrid.add(dateField);
 
-        formGrid.add(new JLabel("Meal Type:"));
+        JLabel lType = new JLabel("Meal Type:"); lType.setFont(UITheme.FONT_BOLD); lType.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lType);
         String[] mealTypes = {"Breakfast", "Lunch", "Dinner", "Snack"};
         mealTypeComboBox = new JComboBox<String>(mealTypes);
+        UITheme.styleComboBox(mealTypeComboBox);
         formGrid.add(mealTypeComboBox);
 
-        formGrid.add(new JLabel("Select Food:"));
+        JLabel lFood = new JLabel("Select Food:"); lFood.setFont(UITheme.FONT_BOLD); lFood.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lFood);
         foodComboBox = new JComboBox<String>();
-        if (availableFoods != null) {
-            for (Food f : availableFoods) {
-                foodComboBox.addItem(f.getFoodName());
-            }
-        }
+        UITheme.styleComboBox(foodComboBox);
+        foodComboBox.addItem("Loading food catalog...");
+        foodComboBox.setEnabled(false);
         formGrid.add(foodComboBox);
 
-        formGrid.add(new JLabel("Quantity (servings):"));
+        JLabel lQty = new JLabel("Quantity (servings):"); lQty.setFont(UITheme.FONT_BOLD); lQty.setForeground(UITheme.TEXT_MAIN);
+        formGrid.add(lQty);
         quantityField = new JTextField("1.0");
+        UITheme.styleTextField(quantityField);
         formGrid.add(quantityField);
 
         northPanel.add(formGrid);
 
         // Row 3: Food Nutritional Info Preview
-        JPanel foodInfoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel foodInfoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        foodInfoPanel.setBackground(UITheme.BG_COLOR);
         foodNutrientsLabel = new JLabel("Nutrients: Select a food to preview serving info");
-        foodNutrientsLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
+        foodNutrientsLabel.setFont(UITheme.FONT_SMALL);
+        foodNutrientsLabel.setForeground(UITheme.TEXT_MUTED);
         foodInfoPanel.add(foodNutrientsLabel);
         northPanel.add(foodInfoPanel);
 
@@ -181,15 +290,17 @@ public class MealLogFrame extends JFrame {
         });
         updateFoodPreview();
 
-        // Row 4: Top Action Buttons (Add Item, Clear, Back)
-        JPanel formActionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        // Row 4: Top Action Buttons (Add Item, Clear)
+        JPanel formActionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        formActionPanel.setBackground(UITheme.BG_COLOR);
         addFoodButton = new JButton("Add Food Item");
         clearButton = new JButton("Clear Form");
-        backButton = new JButton("Back to Dashboard");
+
+        UITheme.stylePrimaryButton(addFoodButton);
+        UITheme.styleSecondaryButton(clearButton);
 
         formActionPanel.add(addFoodButton);
         formActionPanel.add(clearButton);
-        formActionPanel.add(backButton);
         northPanel.add(formActionPanel);
 
         add(northPanel, BorderLayout.NORTH);
@@ -198,9 +309,10 @@ public class MealLogFrame extends JFrame {
         // Center Section: Current Unsaved Meal Items Table
         // ====================================================================
         JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
+        centerPanel.setBackground(UITheme.CARD_BG);
         centerPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(0, 15, 5, 15),
-                BorderFactory.createTitledBorder("Current Meal Items (Unsaved)")
+                BorderFactory.createEmptyBorder(0, 16, 5, 16),
+                UITheme.createTitledCardBorder("Current Meal Items (Unsaved)")
         ));
 
         String[] itemCols = {"Food Name", "Quantity", "Calories (kcal)", "Protein (g)", "Carbs (g)", "Fat (g)"};
@@ -211,26 +323,42 @@ public class MealLogFrame extends JFrame {
             }
         };
         currentItemsTable = new JTable(currentItemsTableModel);
+        UITheme.styleTable(currentItemsTable);
         JScrollPane currentItemsScrollPane = new JScrollPane(currentItemsTable);
+        currentItemsScrollPane.getViewport().setBackground(Color.WHITE);
         centerPanel.add(currentItemsScrollPane, BorderLayout.CENTER);
 
         // Sub-panel below current items: Item Actions & Totals
         JPanel itemFooterPanel = new JPanel(new BorderLayout());
+        itemFooterPanel.setBackground(UITheme.CARD_BG);
 
         // Left side: Remove Item button & Save Meal button
-        JPanel itemButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        JPanel itemButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        itemButtonsPanel.setBackground(UITheme.CARD_BG);
         removeItemButton = new JButton("Remove Selected Item");
         saveMealButton = new JButton("Save Meal");
+        UITheme.styleDangerButton(removeItemButton);
+        UITheme.stylePrimaryButton(saveMealButton);
         itemButtonsPanel.add(removeItemButton);
         itemButtonsPanel.add(saveMealButton);
         itemFooterPanel.add(itemButtonsPanel, BorderLayout.WEST);
 
         // Right side: Totals Display
-        JPanel totalsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 5));
+        JPanel totalsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 14, 6));
+        totalsPanel.setBackground(UITheme.CARD_BG);
         totalCaloriesLabel = new JLabel("Total Calories: 0.00 kcal");
         totalProteinLabel = new JLabel("Protein: 0.00 g");
         totalCarbsLabel = new JLabel("Carbs: 0.00 g");
         totalFatLabel = new JLabel("Fat: 0.00 g");
+
+        totalCaloriesLabel.setFont(UITheme.FONT_BOLD);
+        totalCaloriesLabel.setForeground(UITheme.PRIMARY_DARK);
+        totalProteinLabel.setFont(UITheme.FONT_BOLD);
+        totalProteinLabel.setForeground(UITheme.TEXT_MAIN);
+        totalCarbsLabel.setFont(UITheme.FONT_BOLD);
+        totalCarbsLabel.setForeground(UITheme.TEXT_MAIN);
+        totalFatLabel.setFont(UITheme.FONT_BOLD);
+        totalFatLabel.setForeground(UITheme.TEXT_MAIN);
 
         totalsPanel.add(totalCaloriesLabel);
         totalsPanel.add(totalProteinLabel);
@@ -245,9 +373,10 @@ public class MealLogFrame extends JFrame {
         // South Section: Existing Meals for Selected Date Table
         // ====================================================================
         JPanel southPanel = new JPanel(new BorderLayout(5, 5));
+        southPanel.setBackground(UITheme.CARD_BG);
         southPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(0, 15, 10, 15),
-                BorderFactory.createTitledBorder("Existing Meals for Selected Date")
+                BorderFactory.createEmptyBorder(0, 16, 10, 16),
+                UITheme.createTitledCardBorder("Existing Meals for Selected Date")
         ));
 
         String[] existingCols = {"Meal ID", "Date", "Meal Type", "Number of Items"};
@@ -258,21 +387,34 @@ public class MealLogFrame extends JFrame {
             }
         };
         existingMealsTable = new JTable(existingMealsTableModel);
-        existingMealsTable.setRowHeight(20);
+        UITheme.styleTable(existingMealsTable);
         JScrollPane existingScrollPane = new JScrollPane(existingMealsTable);
         existingScrollPane.setPreferredSize(new java.awt.Dimension(800, 130));
+        existingScrollPane.getViewport().setBackground(Color.WHITE);
         southPanel.add(existingScrollPane, BorderLayout.CENTER);
 
         // Existing Meals Actions: Load & Delete
-        JPanel existingActionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        JPanel existingActionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        existingActionPanel.setBackground(UITheme.CARD_BG);
         loadMealsButton = new JButton("Refresh Meals for Date");
         deleteMealButton = new JButton("Delete Selected Meal");
+
+        UITheme.styleSecondaryButton(loadMealsButton);
+        UITheme.styleDangerButton(deleteMealButton);
 
         existingActionPanel.add(loadMealsButton);
         existingActionPanel.add(deleteMealButton);
         southPanel.add(existingActionPanel, BorderLayout.SOUTH);
 
-        add(southPanel, BorderLayout.SOUTH);
+        backButton = new JButton("Back to Dashboard");
+        JPanel navFooter = UITheme.createSecondaryNavBar(backButton);
+
+        JPanel southContainer = new JPanel(new BorderLayout());
+        southContainer.setBackground(UITheme.BG_COLOR);
+        southContainer.add(southPanel, BorderLayout.CENTER);
+        southContainer.add(navFooter, BorderLayout.SOUTH);
+
+        add(southContainer, BorderLayout.SOUTH);
 
         // ====================================================================
         // Event Listeners (Anonymous Inner Classes - Java Lab Exp 6)
@@ -350,19 +492,13 @@ public class MealLogFrame extends JFrame {
     public void handleAddFoodItem() {
         int selectedIndex = foodComboBox.getSelectedIndex();
         if (selectedIndex < 0 || availableFoods == null || selectedIndex >= availableFoods.size()) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select a food item.",
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please select a food item.", "Validation Error");
             return;
         }
 
         String qtyStr = quantityField.getText().trim();
         if (qtyStr.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Quantity cannot be empty.",
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Quantity cannot be empty.", "Validation Error");
             return;
         }
 
@@ -370,17 +506,11 @@ public class MealLogFrame extends JFrame {
         try {
             quantity = new BigDecimal(qtyStr);
             if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
-                JOptionPane.showMessageDialog(this,
-                        "Quantity must be strictly greater than 0.",
-                        "Validation Error",
-                        JOptionPane.WARNING_MESSAGE);
+                UITheme.showWarning(this, "Quantity must be strictly greater than 0.", "Validation Error");
                 return;
             }
         } catch (NumberFormatException ex) {
-            JOptionPane.showMessageDialog(this,
-                    "Quantity must be a valid numeric value.",
-                    "Format Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Quantity must be a valid numeric value.", "Format Error");
             return;
         }
 
@@ -418,10 +548,7 @@ public class MealLogFrame extends JFrame {
     public void handleRemoveSelectedItem() {
         int selectedRow = currentItemsTable.getSelectedRow();
         if (selectedRow < 0) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select an item from the table to remove.",
-                    "No Selection",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please select an item from the table to remove.", "No Selection");
             return;
         }
 
@@ -459,35 +586,67 @@ public class MealLogFrame extends JFrame {
     }
 
     /**
-     * Persists the meal and all its items transactionally via MealService.
+     * Persists the meal and all its items transactionally via API or MealService.
      */
     public void handleSaveMeal() {
-        String dateStr = dateField.getText().trim();
+        final String dateStr = dateField.getText().trim();
         LocalDate mealDate;
         try {
             mealDate = LocalDate.parse(dateStr);
         } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this,
-                    "Invalid date format. Please use yyyy-MM-dd (e.g. 2026-10-03).",
-                    "Date Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Invalid date format. Please use yyyy-MM-dd (e.g. 2026-10-03).", "Date Error");
             return;
         }
 
-        String mealType = (String) mealTypeComboBox.getSelectedItem();
+        final String mealType = (String) mealTypeComboBox.getSelectedItem();
         if (mealType == null || mealType.trim().isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select a meal type.",
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please select a meal type.", "Validation Error");
             return;
         }
 
         if (currentMealItems.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Cannot save an empty meal. Please add at least one food item.",
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Cannot save an empty meal. Please add at least one food item.", "Validation Error");
+            return;
+        }
+
+        if (apiClient != null) {
+            final ArrayList<MealItem> itemsToSave = new ArrayList<MealItem>(currentMealItems);
+            setMealEditorEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+            final LocalDate finalMealDate = mealDate;
+            SwingWorker<Integer, Void> worker = new SwingWorker<Integer, Void>() {
+                @Override
+                protected Integer doInBackground() throws Exception {
+                    return apiClient.createMeal(finalMealDate, mealType, itemsToSave);
+                }
+
+                @Override
+                protected void done() {
+                    setCursor(Cursor.getDefaultCursor());
+                    try {
+                        int mealId = get();
+                        UITheme.showInfo(MealLogFrame.this,
+                                "Meal saved successfully!\nMeal ID: #" + mealId + " (" + mealType + ")",
+                                "Meal Saved");
+                        handleClear();
+                        refreshExistingMeals();
+                    } catch (Exception ex) {
+                        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                        UITheme.showError(MealLogFrame.this, "Failed to save meal: " + msg, "Error");
+                    } finally {
+                        setMealEditorEnabled(true);
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (mealService == null) {
+            UITheme.showError(this,
+                    "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                    "Connection Unavailable");
             return;
         }
 
@@ -496,10 +655,9 @@ public class MealLogFrame extends JFrame {
         try {
             int mealId = mealService.addMealWithItems(meal, currentMealItems);
 
-            JOptionPane.showMessageDialog(this,
+            UITheme.showInfo(this,
                     "Meal saved successfully!\nMeal ID: #" + mealId + " (" + mealType + ")",
-                    "Meal Saved",
-                    JOptionPane.INFORMATION_MESSAGE);
+                    "Meal Saved");
 
             // Clear current meal form
             handleClear();
@@ -508,16 +666,22 @@ public class MealLogFrame extends JFrame {
             refreshExistingMeals();
 
         } catch (ValidationException ex) {
-            JOptionPane.showMessageDialog(this,
-                    ex.getMessage(),
-                    "Validation Error",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, ex.getMessage(), "Validation Error");
         } catch (DatabaseOperationException ex) {
-            JOptionPane.showMessageDialog(this,
-                    "Failed to save meal: " + ex.getMessage(),
-                    "Database Error",
-                    JOptionPane.ERROR_MESSAGE);
+            UITheme.showError(this, "Failed to save meal: " + ex.getMessage(), "Database Error");
         }
+    }
+
+    private void setMealEditorEnabled(boolean enabled) {
+        dateField.setEnabled(enabled);
+        mealTypeComboBox.setEnabled(enabled);
+        foodComboBox.setEnabled(enabled && availableFoods != null && !availableFoods.isEmpty());
+        quantityField.setEnabled(enabled);
+        addFoodButton.setEnabled(enabled && availableFoods != null && !availableFoods.isEmpty());
+        removeItemButton.setEnabled(enabled);
+        clearButton.setEnabled(enabled);
+        saveMealButton.setEnabled(enabled);
+        backButton.setEnabled(enabled);
     }
 
     /**
@@ -538,7 +702,7 @@ public class MealLogFrame extends JFrame {
         existingMealsTableModel.setRowCount(0);
 
         String dateStr = dateField.getText().trim();
-        LocalDate date;
+        final LocalDate date;
         try {
             date = LocalDate.parse(dateStr);
         } catch (DateTimeParseException ex) {
@@ -546,6 +710,43 @@ public class MealLogFrame extends JFrame {
         }
 
         if (user == null || user.getUserId() == null) {
+            return;
+        }
+
+        if (apiClient != null) {
+            SwingWorker<ArrayList<MealHandler.MealResponseDto>, Void> worker = new SwingWorker<ArrayList<MealHandler.MealResponseDto>, Void>() {
+                @Override
+                protected ArrayList<MealHandler.MealResponseDto> doInBackground() throws Exception {
+                    return apiClient.getMealsByDate(date);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        ArrayList<MealHandler.MealResponseDto> meals = get();
+                        existingMealsTableModel.setRowCount(0);
+                        if (meals != null) {
+                            for (MealHandler.MealResponseDto m : meals) {
+                                Object[] row = {
+                                        m.mealId,
+                                        m.mealDate != null ? m.mealDate.toString() : date.toString(),
+                                        m.mealType,
+                                        m.itemCount
+                                };
+                                existingMealsTableModel.addRow(row);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                        UITheme.showWarning(MealLogFrame.this, "Could not load existing meals: " + msg, "Warning");
+                    }
+                }
+            };
+            worker.execute();
+            return;
+        }
+
+        if (mealService == null) {
             return;
         }
 
@@ -562,27 +763,21 @@ public class MealLogFrame extends JFrame {
                 existingMealsTableModel.addRow(row);
             }
         } catch (DatabaseOperationException ex) {
-            JOptionPane.showMessageDialog(this,
-                    "Could not load existing meals: " + ex.getMessage(),
-                    "Warning",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Could not load existing meals: " + ex.getMessage(), "Warning");
         }
     }
 
     /**
-     * Handles deletion of selected meal using MealService.
+     * Handles deletion of selected meal using API or MealService.
      */
     public void handleDeleteSelectedMeal() {
         int selectedRow = existingMealsTable.getSelectedRow();
         if (selectedRow < 0) {
-            JOptionPane.showMessageDialog(this,
-                    "Please select an existing meal to delete.",
-                    "No Selection",
-                    JOptionPane.WARNING_MESSAGE);
+            UITheme.showWarning(this, "Please select an existing meal to delete.", "No Selection");
             return;
         }
 
-        Integer mealId = (Integer) existingMealsTableModel.getValueAt(selectedRow, 0);
+        final Integer mealId = (Integer) existingMealsTableModel.getValueAt(selectedRow, 0);
 
         int confirm = JOptionPane.showConfirmDialog(this,
                 "Are you sure you want to delete Meal #" + mealId + "?\nAll associated items will be removed.",
@@ -590,18 +785,45 @@ public class MealLogFrame extends JFrame {
                 JOptionPane.YES_NO_OPTION);
 
         if (confirm == JOptionPane.YES_OPTION) {
+            if (apiClient != null) {
+                setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+                SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+                    @Override
+                    protected Void doInBackground() throws Exception {
+                        apiClient.deleteMeal(mealId);
+                        return null;
+                    }
+
+                    @Override
+                    protected void done() {
+                        setCursor(Cursor.getDefaultCursor());
+                        try {
+                            get();
+                            UITheme.showInfo(MealLogFrame.this, "Meal #" + mealId + " deleted successfully.", "Meal Deleted");
+                            refreshExistingMeals();
+                        } catch (Exception ex) {
+                            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                            UITheme.showError(MealLogFrame.this, "Failed to delete meal: " + msg, "Error");
+                        }
+                    }
+                };
+                worker.execute();
+                return;
+            }
+
+            if (mealService == null) {
+                UITheme.showError(this,
+                        "NutriGuide Localhost API Client is not connected, and direct database service fallback is disabled.",
+                        "Connection Unavailable");
+                return;
+            }
+
             try {
                 mealService.deleteMeal(mealId, user.getUserId());
-                JOptionPane.showMessageDialog(this,
-                        "Meal #" + mealId + " deleted successfully.",
-                        "Meal Deleted",
-                        JOptionPane.INFORMATION_MESSAGE);
+                UITheme.showInfo(this, "Meal #" + mealId + " deleted successfully.", "Meal Deleted");
                 refreshExistingMeals();
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this,
-                        "Failed to delete meal: " + ex.getMessage(),
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE);
+                UITheme.showError(this, "Failed to delete meal: " + ex.getMessage(), "Error");
             }
         }
     }
@@ -610,9 +832,8 @@ public class MealLogFrame extends JFrame {
      * Disposes this frame and returns to DashboardFrame for the current User.
      */
     public void handleBackToDashboard() {
-        this.dispose();
-        DashboardFrame dashboard = new DashboardFrame(user);
-        dashboard.setVisible(true);
+        DashboardFrame dashboard = apiClient != null ? new DashboardFrame(user, apiClient) : new DashboardFrame(user);
+        UITheme.transition(this, dashboard);
     }
 
     // ========================================================================

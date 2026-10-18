@@ -212,6 +212,12 @@ public class DaoLayerDemo {
             throws DatabaseOperationException {
         System.out.println("\n--- [G] Controlled INSERT and UPDATE Test ---");
 
+        if (!DatabaseSafetyGuard.isDisposableDatabaseConfigured()) {
+            System.out.println("  [SKIPPED] Section G performs database writes. It requires an explicitly named disposable test database.");
+            System.out.println("            Run with -Dnutriguide.test.database.name=<exact_test_db_name> matching database.properties to enable write tests.");
+            return;
+        }
+
         String tempEmail = "test_dao_user_" + System.currentTimeMillis() + "@viva.lab";
         String passwordHash = PasswordUtil.hashPassword("TempPass@123");
 

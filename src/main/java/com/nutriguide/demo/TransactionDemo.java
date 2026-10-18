@@ -25,6 +25,8 @@ public class TransactionDemo {
         System.out.println("   NutriGuide DBMS Exp 10: ACID Transactions & Concurrency Demonstration");
         System.out.println("================================================================================");
 
+        DatabaseSafetyGuard.requireDisposableDatabase("TransactionDemo");
+
         try {
             // Part A
             runPartA_SuccessfulCommit();

@@ -84,7 +84,9 @@ public class RecommendationService {
     }
 
     /**
-     * Retrieves recommendation history for a user (alias for getRecommendationsByUserId).
+     * Retrieves recommendation history for a user.
+     * <p>Note for Viva: Serves as a backward-compatible alias for getRecommendationsByUserId(),
+     * used by GUI frames (e.g. RecommendationFrame) without duplicating database logic.</p>
      */
     public ArrayList<Recommendation> getRecommendationHistory(int userId)
             throws DatabaseOperationException {

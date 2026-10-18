@@ -30,7 +30,17 @@ public class UserService {
     }
 
     /**
-     * Registers a new user through the authentication service.
+     * Registers a new user through AuthenticationService.
+     *
+     * <p>Retained as a convenience delegation method so that external callers or test suites
+     * can register a user without needing a separate reference to AuthenticationService.
+     * Core registration, hashing, and credential validation logic reside in AuthenticationService.</p>
+     *
+     * @param user User profile details
+     * @param plainPassword Plaintext password to hash and persist
+     * @return Registered User entity with generated ID
+     * @throws ValidationException if input validation fails
+     * @throws DatabaseOperationException if database insertion fails
      */
     public User registerUser(User user, String plainPassword)
             throws ValidationException, DatabaseOperationException {
