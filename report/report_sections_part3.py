@@ -168,22 +168,22 @@ UNION ALL SELECT 'activity_log', COUNT(*) FROM activity_log;
 #### Output:
 | Table_Name | Total_Records |
 |:---|:---|
-| `user_profile` | 2 |
-| `nutrition_goal` | 2 |
-| `food_category` | 5 |
-| `food` | 15 |
-| `meal` | 4 |
-| `meal_item` | 8 |
-| `meal_plan` | 1 |
-| `meal_plan_item` | 3 |
-| `recommendation` | 2 |
-| `activity_log` | 4 |
+| user_profile | 2 |
+| nutrition_goal | 2 |
+| food_category | 5 |
+| food | 15 |
+| meal | 4 |
+| meal_item | 8 |
+| meal_plan | 1 |
+| meal_plan_item | 3 |
+| recommendation | 2 |
+| activity_log | 4 |
 
 ---
 
 ### 11.3 Table Contents After Loading Seed Data
 
-#### 1. `SELECT * FROM food_category;`
+#### 1. SELECT * FROM food_category;
 | category_id | category_name |
 |:---|:---|
 | 1 | Grains |
@@ -192,7 +192,7 @@ UNION ALL SELECT 'activity_log', COUNT(*) FROM activity_log;
 | 4 | Fruits |
 | 5 | Vegetables |
 
-#### 2. `SELECT * FROM food;`
+#### 2. SELECT * FROM food;
 | food_id | category_id | food_name | serving_size | calories | protein | carbohydrates | fat |
 |:---|:---|:---|:---|:---|:---|:---|:---|
 | 1 | 1 | Cooked White Rice | 100.00 | 130.00 | 2.70 | 28.20 | 0.30 |
@@ -211,19 +211,19 @@ UNION ALL SELECT 'activity_log', COUNT(*) FROM activity_log;
 | 14 | 5 | Mixed Green Salad | 100.00 | 20.00 | 1.20 | 3.80 | 0.20 |
 | 15 | 5 | Boiled Potato | 100.00 | 87.00 | 1.90 | 20.10 | 0.10 |
 
-#### 3. `SELECT user_id, name, email, age, gender, height_cm, weight_kg, activity_level FROM user_profile;`
+#### 3. SELECT user_id, name, email, age, gender, height_cm, weight_kg, activity_level FROM user_profile;
 | user_id | name | email | age | gender | height_cm | weight_kg | activity_level |
 |:---|:---|:---|:---|:---|:---|:---|:---|
 | 1 | John Doe | user@example.com | 24 | Male | 175.00 | 70.00 | Moderately Active |
 | 2 | Jane Smith | jane@example.com | 22 | Female | 162.00 | 58.00 | Lightly Active |
 
-#### 4. `SELECT * FROM nutrition_goal;`
+#### 4. SELECT * FROM nutrition_goal;
 | goal_id | user_id | target_calories | target_protein | target_carbs | target_fats | is_active |
 |:---|:---|:---|:---|:---|:---|:---|
 | 1 | 1 | 2200.00 | 120.00 | 250.00 | 65.00 | 1 |
 | 2 | 2 | 1800.00 | 90.00 | 200.00 | 50.00 | 1 |
 
-#### 5. `SELECT * FROM meal;`
+#### 5. SELECT * FROM meal;
 | meal_id | user_id | meal_type | meal_date | created_at |
 |:---|:---|:---|:---|:---|
 | 1 | 1 | Breakfast | 2026-10-18 | 2026-10-18 08:30:00 |
@@ -231,7 +231,7 @@ UNION ALL SELECT 'activity_log', COUNT(*) FROM activity_log;
 | 3 | 1 | Dinner | 2026-10-18 | 2026-10-18 20:00:00 |
 | 4 | 2 | Breakfast | 2026-10-18 | 2026-10-18 08:45:00 |
 
-#### 6. `SELECT * FROM meal_item;`
+#### 6. SELECT * FROM meal_item;
 | meal_item_id | meal_id | food_id | quantity |
 |:---|:---|:---|:---|
 | 1 | 1 | 3 (Rolled Oats) | 1.00 |
@@ -251,7 +251,7 @@ To make data retrieval efficient and avoid recalculating nutrients inside client
 
 ### 12.1 Stored Functions (DBMS Exp 6)
 
-#### Function 1: `calculate_bmi(weight_kg, height_cm)`
+#### Function 1: calculate_bmi(weight_kg, height_cm)
 - **Mathematical Formula**: BMI = weight_kg / (height_m)² = weight_kg / (height_cm / 100)²
 - **Determinism**: Declared `DETERMINISTIC NO SQL` for maximum execution performance and compiler query caching.
 
@@ -294,7 +294,7 @@ FROM user_profile;
 
 ---
 
-#### Function 2: `get_total_calories(user_id, meal_date)`
+#### Function 2: get_total_calories(user_id, meal_date)
 - **Purpose**: Computes total caloric intake for a user on a given date by aggregating food calories scaled by portion quantities.
 
 ```sql
@@ -330,7 +330,7 @@ SELECT get_total_calories(1, '2026-10-18') AS john_total_calories;
 
 ### 12.2 Stored Procedures (DBMS Exp 7)
 
-#### Procedure: `get_daily_summary(p_user_id, p_date, OUT p_calories, OUT p_protein, OUT p_carbs, OUT p_fat)`
+#### Procedure: get_daily_summary(p_user_id, p_date, OUT p_calories, OUT p_protein, OUT p_carbs, OUT p_fat)
 - **Purpose**: Retrieves all four macronutrient totals for a user on a specific date using SQL `OUT` parameters.
 
 ```sql
@@ -372,7 +372,7 @@ SELECT @cal AS daily_calories, @pro AS daily_protein, @carb AS daily_carbs, @fat
 
 ### 12.3 SQL Views (DBMS Exp 4 & 5)
 
-#### View 1: `daily_nutrition_summary`
+#### View 1: daily_nutrition_summary
 Pre-aggregates nutritional consumption per user per day.
 ```sql
 CREATE OR REPLACE VIEW daily_nutrition_summary AS
@@ -400,7 +400,7 @@ SELECT * FROM daily_nutrition_summary WHERE user_id = 1;
 
 ---
 
-#### View 2: `food_category_details`
+#### View 2: food_category_details
 Pre-joins food catalog items with their dietary categories, removing redundant join code.
 ```sql
 CREATE OR REPLACE VIEW food_category_details AS
@@ -434,8 +434,8 @@ SELECT food_name, category_name, calories, protein FROM food_category_details LI
 
 ### 12.4 Triggers (DBMS Exp 8)
 
-#### Trigger 1: `trg_after_meal_insert` (AFTER INSERT Audit Trigger)
-Automatically creates an audit record in `activity_log` whenever a new meal transaction is committed.
+#### Trigger 1: trg_after_meal_insert (AFTER INSERT Audit Trigger)
+Automatically creates an audit record in activity_log whenever a new meal transaction is committed.
 ```sql
 DELIMITER $$
 CREATE TRIGGER trg_after_meal_insert
@@ -464,7 +464,7 @@ SELECT * FROM activity_log WHERE user_id = 1 ORDER BY log_id DESC LIMIT 1;
 
 ---
 
-#### Trigger 2: `trg_validate_meal_quantity` (BEFORE INSERT Validation Trigger)
+#### Trigger 2: trg_validate_meal_quantity (BEFORE INSERT Validation Trigger)
 Guards the database against non-positive serving quantities by signaling a SQLSTATE error.
 ```sql
 DELIMITER $$
@@ -692,50 +692,48 @@ ORDER BY log_time DESC;
 
 ## 13. Application of Codd's 12 Rules
 
-In 1985, Dr. E. F. Codd formulated twelve foundational rules (plus Rule 0) to establish whether an information management system qualifies as a true relational database. As part of our DBMS coursework, we evaluated our **MySQL 8.x (InnoDB)** backend against Codd's criteria to examine where modern relational engines strictly adhere to theory and where practical trade-offs occur:
+In 1985, Dr. E. F. Codd published twelve rules (plus Rule 0) defining what an ideal relational database system should support. While building NutriGuide, our group evaluated our MySQL 8.0 InnoDB database against these rules to understand how closely our project aligns with relational theory:
 
 | Rule No. | Rule Name | Formal Statement | Evaluation in NutriGuide | Compliance Status |
 |:---|:---|:---|:---|:---|
-| **Rule 0** | **Foundation Rule** | The system must be able to manage databases entirely through its relational capabilities. | NutriGuide manages all entities (users, goals, meals, foods, plans, recommendations, audit logs) exclusively through relational tables, keys, and SQL operations. | **Followed** |
-| **Rule 1** | **Information Rule** | All information in the database is represented explicitly at the logical level in exactly one way: by values in tables. | Every domain fact (from user demographics to portion quantities and trigger audit records) is stored exclusively in rows and columns across the 10 relational tables. | **Followed** |
-| **Rule 2** | **Guaranteed Access Rule** | Each and every datum in a relational database is guaranteed to be logically accessible by resorting to a combination of table name, primary key value, and column name. | Any specific nutrient or demographic attribute can be directly pinpointed. For example: `SELECT protein FROM food WHERE food_id = 4;` unambiguously retrieves `31.00`. | **Followed** |
-| **Rule 3** | **Systematic Treatment of NULL Values** | NULL values are supported in a systematic way, representing missing information or inapplicable data, independent of data type. | Columns like `activity_level` allow NULL only when unspecified, whereas mandatory attributes (`name`, `email`, `serving_size`) enforce `NOT NULL`. Null handling functions (`COALESCE`, `IFNULL`) are systematically used. | **Followed** |
-| **Rule 4** | **Dynamic Online Catalog Based on the Relational Model** | The database description is represented at the logical level in the same way as ordinary data, so authorized users can query it using relational SQL. | Schema metadata is queried relationally via MySQL's `information_schema` (e.g., `SELECT * FROM information_schema.tables WHERE table_schema = 'nutriguide';`). | **Followed** |
-| **Rule 5** | **Comprehensive Data Sublanguage Rule** | A relational system may support several languages, but must support at least one well-defined sublanguage supporting DDL, DML, integrity constraints, and transaction control. | NutriGuide utilizes SQL for DDL (`CREATE TABLE`), DML (`INSERT`, `UPDATE`), view/trigger declarations, and transaction control (`START TRANSACTION`, `COMMIT`, `ROLLBACK`). | **Followed** |
-| **Rule 6** | **View Updating Rule** | All views that are theoretically updatable are also updatable by the system. | Simple views are updatable in MySQL. However, complex aggregation views (`daily_nutrition_summary` with `SUM`, `GROUP BY`, and joins) are non-updatable in MySQL InnoDB, as is standard practice. | **Partially Followed** |
-| **Rule 7** | **High-Level Insert, Update, and Delete** | The system must support set-at-a-time operations for retrieval, insertion, update, and deletion, not merely record-at-a-time processing. | Bulk operations operate seamlessly on entire tuple sets (e.g., multi-row `INSERT INTO food VALUES (...)`, mass status updates via `UPDATE nutrition_goal SET is_active = FALSE`). | **Followed** |
-| **Rule 8** | **Physical Data Independence** | Application programs and terminal activities remain logically unimpaired whenever any changes are made in storage representations or access methods. | The physical tablespace layout, B-Tree index structures, and disk allocations are managed entirely by the InnoDB engine without altering application SQL queries. | **Followed** |
-| **Rule 9** | **Logical Data Independence** | Application programs and terminal activities remain logically unimpaired when information-preserving changes of any kind that theoretically permit un-impairment are made to the tables. | Pre-aggregated SQL views (`daily_nutrition_summary`, `food_category_details`) insulate the application layer from table schema evolutions, though drastic structural changes may require query updates. | **Partially Followed** |
-| **Rule 10** | **Integrity Independence** | Integrity constraints must be definable in the relational data sublanguage and stored in the catalog, not in application programs. | All constraints (PKs, FKs with `ON DELETE CASCADE`, `CHECK` bounds on heights/weights, `UNIQUE` email keys, and triggers) reside directly inside MySQL, not in client code. | **Followed** |
-| **Rule 11** | **Distribution Independence** | The data manipulation sublanguage of a relational DBMS must enable application programs to remain unchanged whether data is centralized or distributed. | NutriGuide operates on a centralized MySQL 8.x database server; distributed transparency (e.g., two-phase commit over sharded nodes) is not implemented. | **Not Applicable** |
-| **Rule 12** | **Non-Subversion Rule** | If a relational system has a low-level language, that low level cannot be used to subvert or bypass the integrity rules and constraints. | Access to MySQL storage is strictly mediated via SQL under authentication privileges. Engine constraints cannot be bypassed by low-level row manipulations. | **Followed** |
+| **Rule 0** | **Foundation Rule** | The system must be able to manage databases entirely through its relational capabilities. | We manage all nutritional data (users, goals, meals, foods, plans, and logs) entirely through relational tables, keys, and SQL operations. | **Followed** |
+| **Rule 1** | **Information Rule** | All information in the database is represented explicitly at the logical level in exactly one way: by values in tables. | Every domain fact, from user height and weight to individual food line items, is stored solely as rows and columns across our 10 tables. | **Followed** |
+| **Rule 2** | **Guaranteed Access Rule** | Each and every datum in a relational database is guaranteed to be logically accessible by resorting to a combination of table name, primary key value, and column name. | Any specific value can be directly retrieved using table name, primary key, and column name (e.g., SELECT protein FROM food WHERE food_id = 4 returns 31.00). | **Followed** |
+| **Rule 3** | **Systematic Treatment of NULL Values** | NULL values are supported in a systematic way, representing missing information or inapplicable data, independent of data type. | Optional attributes allow NULL when unspecified, whereas mandatory columns (name, email, serving_size) enforce NOT NULL. SQL functions like COALESCE are used when aggregating. | **Followed** |
+| **Rule 4** | **Dynamic Online Catalog Based on the Relational Model** | The database description is represented at the logical level in the same way as ordinary data, so authorized users can query it using relational SQL. | Schema metadata is stored relationally in MySQL's information_schema tables and can be queried with standard SQL SELECT statements. | **Followed** |
+| **Rule 5** | **Comprehensive Data Sublanguage Rule** | A relational system may support several languages, but must support at least one well-defined sublanguage supporting DDL, DML, integrity constraints, and transaction control. | Our project uses SQL for table creation (DDL), queries and updates (DML), view definitions, and transaction boundaries (COMMIT and ROLLBACK). | **Followed** |
+| **Rule 6** | **View Updating Rule** | All views that are theoretically updatable are also updatable by the system. | Simple views can be updated in MySQL. However, our main aggregation view (daily_nutrition_summary) uses SUM and GROUP BY, making it read-only in InnoDB as per SQL standards. | **Partially Followed** |
+| **Rule 7** | **High-Level Insert, Update, and Delete** | The system must support set-at-a-time operations for retrieval, insertion, update, and deletion, not merely record-at-a-time processing. | MySQL performs set-oriented operations natively, such as inserting multiple foods in one statement or updating goal active flags across multiple rows. | **Followed** |
+| **Rule 8** | **Physical Data Independence** | Application programs and terminal activities remain logically unimpaired whenever any changes are made in storage representations or access methods. | How InnoDB stores data on disk, organizes B-tree indexes, or allocates pages does not impact our Java application queries or SQL statements. | **Followed** |
+| **Rule 9** | **Logical Data Independence** | Application programs and terminal activities remain logically unimpaired when information-preserving changes of any kind that theoretically permit un-impairment are made to the tables. | Pre-aggregated SQL views like daily_nutrition_summary shield client code from schema changes, though large structural modifications may require updating queries. | **Partially Followed** |
+| **Rule 10** | **Integrity Independence** | Integrity constraints must be definable in the relational data sublanguage and stored in the catalog, not in application programs. | All constraints (primary keys, foreign keys with ON DELETE CASCADE and RESTRICT, CHECK rules, and triggers) are stored inside MySQL, not in client code. | **Followed** |
+| **Rule 11** | **Distribution Independence** | The data manipulation sublanguage of a relational DBMS must enable application programs to remain unchanged whether data is centralized or distributed. | NutriGuide operates on a local standalone MySQL 8.0 server, so distributed database features are not utilized. | **Not Applicable** |
+| **Rule 12** | **Non-Subversion Rule** | If a relational system has a low-level language, that low level cannot be used to subvert or bypass the integrity rules and constraints. | Database access is mediated through SQL under user authentication; engine-level CHECK and foreign key rules cannot be bypassed by low-level edits. | **Followed** |
 
 ---
 
 ## 14. Individual Contributions (Step 11)
 
-The NutriGuide DBMS Project was collaboratively engineered by Group 1 under the academic guidance of **Dr. Balkrishna Patil**. All four team members met regularly to review schema revisions, resolve foreign key constraints, and test backend queries against sample data. Specific responsibilities were divided as follows:
+The NutriGuide DBMS Project was collaboratively built by Group 1 under the guidance of **Dr. Balkrishna Patil**. All four team members met regularly to design the schema, discuss foreign key rules, write normalization proofs, and test queries against realistic food data. The responsibilities were distributed across team members as follows:
 
 | Sr. No. | Student Name | PRN | Core Responsibilities & Modules Authored |
 |:---:|:---|:---:|:---|
-| **1** | **Tejas Jagdish Patil** | **26070122510** | • Problem formulation, domain modeling, and System Architecture design.<br>• Authored Functional & Non-Functional Requirements (FR1–FR9).<br>• Designed the multi-tier topology and generated the System Architecture diagram.<br>• Authored DDL schema and test verification for `user_profile` and `nutrition_goal`. |
-| **2** | **Veer Parmar** | **26070122508** | • Conceptual ER Diagram drafting (Chen notation) and Enhanced ER (EER) modeling.<br>• Entity, relationship, and attribute cardinalities with participation constraints.<br>• Designed referential integrity policies (`ON DELETE CASCADE` vs. `RESTRICT`).<br>• Authored DDL schema and nutritional catalog data for `food_category` and `food`. |
-| **3** | **Postiwala Vatsal Dipakbhai** | **26070122509** | • Comprehensive Database Anomalies analysis on the unnormalized `NUTRITION_FLAT` model.<br>• Formal Functional Dependencies formulation and mathematical Normalization (1NF → 2NF → 3NF → BCNF).<br>• Generated normalization comparison diagrams (Figures 10.1 through 10.6).<br>• Designed associative junction tables `meal_item` and `meal_plan_item`.<br>• Authored stored functions `calculate_bmi` and `get_total_calories`, and SQL views. |
-| **4** | **Parth Bhayani** | **26070122512** | • Implemented stored procedure `get_daily_summary` with `OUT` parameters.<br>• Designed and tested database triggers (`trg_after_meal_insert`, `trg_validate_meal_quantity`).<br>• Created the system audit log module (`activity_log`) and recommendation table.<br>• Developed the comprehensive 10-query analytical test suite (Q1–Q10).<br>• Conducted Codd's 12 Rules compliance evaluation on MySQL InnoDB. |
+| **1** | **Tejas Jagdish Patil** | **26070122510** | Problem formulation and domain analysis. Authored Functional & Non-Functional Requirements (FR1–FR9). Designed the 3-tier system architecture and created the architecture diagram. Implemented DDL schema and test verification for user_profile and nutrition_goal. |
+| **2** | **Veer Parmar** | **26070122508** | Conceptual ER Diagram drafting (Chen notation) and Enhanced ER (EER) physical modeling. Mapped entity relationships, cardinalities, and participation constraints. Designed referential integrity rules (CASCADE vs. RESTRICT). Implemented DDL schema and nutritional catalog data for food_category and food. |
+| **3** | **Postiwala Vatsal Dipakbhai** | **26070122509** | Database anomalies analysis on the unnormalized NUTRITION_FLAT relation. Formal Functional Dependencies formulation and mathematical normalization (1NF to BCNF). Created normalization comparison diagrams (Figures 10.1 to 10.6). Designed associative junction tables meal_item and meal_plan_item. Implemented stored functions calculate_bmi and get_total_calories, and SQL views. |
+| **4** | **Parth Bhayani** | **26070122512** | Implemented stored procedure get_daily_summary with OUT parameters. Developed and tested database triggers (trg_after_meal_insert, trg_validate_meal_quantity). Created the system audit log module (activity_log) and recommendation table. Authored and tested the 10-query analytical test suite (Q1–Q10). Evaluated MySQL InnoDB against Codd's 12 Rules. |
 
 ---
 
 ## 15. Conclusion
 
-Building NutriGuide gave our team practical, end-to-end experience taking a real-world software concept from an initial problem statement all the way to a normalized, high-performance relational database. Working on this project highlighted the clear practical value behind core relational database principles:
+Building NutriGuide gave our group practical experience taking a database project from an initial idea all the way to a working desktop application connected to MySQL 8.0. In class, database concepts like normalization and Boyce-Codd Normal Form can feel abstract when you are only solving written exercises on paper. But when you are actually designing tables for a meal tracker, seeing why a flat spreadsheet causes insertion and update anomalies makes the theory click immediately.
 
-1. **Practical Value of Normalization**: Decomposing our initial flat spreadsheet model into ten 3NF and BCNF tables was essential to ensure that updating body weights or food catalog facts would never corrupt historical records.
-2. **Clean Many-to-Many Handling**: Designing the `meal_item` and `meal_plan_item` associative junction tables showed us how multi-item meals can be modeled without resorting to multi-valued strings or repeated columns.
-3. **Storage-Level Data Safety**: Configuring declarative `CHECK` constraints directly in MySQL ensures that negative heights, weights, and serving portions are rejected at the storage layer rather than relying only on frontend validation.
-4. **Performance via Stored Programs**: Writing stored functions (`calculate_bmi`) and procedures with output parameters (`get_daily_summary`) demonstrated how much network traffic and client overhead can be reduced by performing aggregations directly inside the database engine.
-5. **Automated Accountability**: Implementing the `trg_after_meal_insert` trigger confirmed that audit logging can be made completely foolproof and independent of application-level bugs.
+Splitting our initial design into ten normalized tables showed us why 3NF and BCNF matter in real software. If we had kept user body weights or food calorie counts in the same table as logged meals, every single portion change would have caused update anomalies. Implementing the meal_item and meal_plan_item junction tables taught us how to model many-to-many relationships cleanly without resorting to comma-separated text strings.
 
-Overall, the project gave us a solid, hands-on understanding of database architecture, query optimization, and schema engineering in MySQL 8.x.
+We also learned the importance of enforcing data integrity at the database level rather than trusting client-side forms alone. Adding CHECK constraints for positive heights, weights, and quantities ensures that bad data is rejected by MySQL InnoDB even if frontend validation is bypassed. Writing stored functions for BMI calculation and stored procedures with output parameters for daily summaries showed us how database routines can reduce repetitive client code and network traffic. Finally, using database triggers to automatically write audit logs proved how reliable backend automation can be.
+
+Overall, this project helped us connect classroom relational algebra and SQL theory with real-world software engineering, giving us confidence in schema design, query optimization, and database application development.
 
 ---
 
@@ -755,7 +753,7 @@ Overall, the project gave us a solid, hands-on understanding of database archite
 
 ---
 
-## Appendix A. Complete SQL Script (`NutriGuide.sql`)
+## Appendix A. Complete SQL Script (NutriGuide.sql)
 
 ```sql
 -- ============================================================================

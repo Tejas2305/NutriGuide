@@ -331,7 +331,10 @@ def build_docx_report():
                 set_cell_background(cell, bg_color)
                 set_cell_margins(cell, top=80, bottom=80, left=120, right=120)
                 
-                cell_text = r_data[c_idx] if c_idx < len(r_data) else ""
+                raw_cell_text = r_data[c_idx] if c_idx < len(r_data) else ""
+                # Clean up leaked HTML breaks and backticks
+                cleaned_cell_text = raw_cell_text.replace("<br>•", "\n• ").replace("<br/>•", "\n• ").replace("<br>", "\n").replace("<br/>", "\n").replace("`", "")
+                
                 cp = cell.paragraphs[0]
                 cp.paragraph_format.space_after = Pt(1)
                 cp.paragraph_format.space_before = Pt(1)
@@ -339,13 +342,22 @@ def build_docx_report():
 
                 if is_header:
                     cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    r_cell = cp.add_run(cell_text)
+                    r_cell = cp.add_run(cleaned_cell_text)
                     r_cell.font.name = "Calibri"
                     r_cell.font.size = Pt(9.5)
                     r_cell.font.bold = True
                     r_cell.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
                 else:
-                    add_formatted_text(cp, cell_text, base_font_size=9.0)
+                    lines_in_cell = cleaned_cell_text.split("\n")
+                    for l_idx, line_item in enumerate(lines_in_cell):
+                        if l_idx > 0:
+                            p_next = cell.add_paragraph()
+                            p_next.paragraph_format.space_after = Pt(1)
+                            p_next.paragraph_format.space_before = Pt(1)
+                            p_next.paragraph_format.line_spacing = 1.05
+                            add_formatted_text(p_next, line_item, base_font_size=9.0)
+                        else:
+                            add_formatted_text(cp, line_item, base_font_size=9.0)
 
         p_spacer = doc.add_paragraph()
         p_spacer.paragraph_format.space_after = Pt(4)
@@ -491,7 +503,7 @@ def build_docx_report():
             continue
 
         if stripped.startswith("## "):
-            heading_text = stripped[3:].strip()
+            heading_text = stripped[3:].strip().replace("`", "")
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(9)
             p.paragraph_format.space_after = Pt(2)
@@ -505,7 +517,7 @@ def build_docx_report():
             continue
 
         if stripped.startswith("### "):
-            heading_text = stripped[4:].strip()
+            heading_text = stripped[4:].strip().replace("`", "")
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(7)
             p.paragraph_format.space_after = Pt(1.5)
@@ -519,7 +531,7 @@ def build_docx_report():
             continue
 
         if stripped.startswith("#### "):
-            heading_text = stripped[5:].strip()
+            heading_text = stripped[5:].strip().replace("`", "")
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(5)
             p.paragraph_format.space_after = Pt(1)
@@ -544,15 +556,22 @@ def build_docx_report():
             i += 1
             continue
 
-        # Numbered list items
+        # Numbered list items (Use manual hanging indent instead of Word's List Number to prevent continuous global numbering across sections)
         num_match = re.match(r"^(\d+)\.\s+(.*)", stripped)
         if num_match:
             prefix = num_match.group(1) + ". "
             item_text = num_match.group(2)
-            p = doc.add_paragraph(style='List Number')
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.28)
+            p.paragraph_format.first_line_indent = Inches(-0.28)
             p.paragraph_format.space_before = Pt(1)
             p.paragraph_format.space_after = Pt(2)
             p.paragraph_format.line_spacing = 1.15
+            r_num = p.add_run(prefix)
+            r_num.font.name = "Calibri"
+            r_num.font.size = Pt(10.0)
+            r_num.font.bold = True
+            r_num.font.color.rgb = COLOR_DARK_TEXT
             add_formatted_text(p, item_text, base_font_size=10.0)
             i += 1
             continue
