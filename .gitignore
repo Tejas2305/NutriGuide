@@ -51,6 +51,11 @@ extract_dbms.py
 __pycache__/
 *.pyc
 
+# Report generation scripts and raw drafts (only track official DOCX, PDF, and images in Git)
+report/*.py
+report/*.md
+report/*.html
+
 # Sensitive Database Configuration & Credentials (NEVER COMMIT SECRETS)
 src/main/resources/database.properties
 *.properties
