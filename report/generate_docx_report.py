@@ -17,9 +17,8 @@ from docx.oxml.ns import qn
 
 REPORT_DIR = r"D:\NutriGuide\report"
 IMG_DIR = os.path.join(REPORT_DIR, "images")
-MD_FILE = os.path.join(REPORT_DIR, "NutriGuide_DBMS_Project_Report.md")
-DOCX_FILE = os.path.join(REPORT_DIR, "NutriGuide_DBMS_Project_Report.docx")
-DOCX_B3_FILE = os.path.join(REPORT_DIR, "B3_GRP-1_NutriGuide.docx")
+MD_FILE = os.path.join(REPORT_DIR, "B3_GRP-1_NutriGuide.md")
+DOCX_FILE = os.path.join(REPORT_DIR, "B3_GRP-1_NutriGuide.docx")
 
 # Color Palette
 COLOR_PRIMARY_NAVY = RGBColor(0x1A, 0x36, 0x5D)   # #1A365D - Main Title & Headings
@@ -592,9 +591,7 @@ def build_docx_report():
 
     print(f"Saving Word document: {DOCX_FILE}")
     doc.save(DOCX_FILE)
-    print(f"Saving Word document: {DOCX_B3_FILE}")
-    doc.save(DOCX_B3_FILE)
-    print(f"Successfully generated: {DOCX_B3_FILE}")
+    print(f"Successfully generated: {DOCX_FILE}")
 
 if __name__ == "__main__":
     build_docx_report()
