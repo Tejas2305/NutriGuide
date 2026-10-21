@@ -14,23 +14,25 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 /**
- * NutritionGoalDAO: Handles JDBC database operations for the 'nutrition_goal' relation.
+ * NutritionGoalDAO - handles all database operations for the 'nutrition_goal' table.
  */
 public class NutritionGoalDAO {
 
     /**
-     * Adds a new nutrition goal and returns the generated goal_id.
-     *
-     * @param goal NutritionGoal entity
-     * @return Generated goal_id
-     * @throws DatabaseOperationException If database operation fails
+     * Adds a new nutrition goal to the database.
+     * Returns the auto-generated goal_id.
      */
     public int addGoal(NutritionGoal goal) throws DatabaseOperationException {
         String sql = "INSERT INTO nutrition_goal (user_id, target_calories, target_protein, " +
                      "target_carbs, target_fats, is_active) VALUES (?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 
             stmt.setInt(1, goal.getUserId());
             stmt.setBigDecimal(2, goal.getTargetCalories());
@@ -41,28 +43,37 @@ public class NutritionGoalDAO {
 
             stmt.executeUpdate();
 
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int id = keys.getInt(1);
-                    goal.setGoalId(id);
-                    return id;
-                } else {
-                    throw new DatabaseOperationException("Goal insertion succeeded but failed to obtain ID.");
-                }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                int id = keys.getInt(1);
+                goal.setGoalId(id);
+                return id;
+            } else {
+                throw new DatabaseOperationException("Goal added but could not get generated ID.");
             }
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to add nutrition goal for user ID: " + goal.getUserId(), e);
+            throw new DatabaseOperationException("Failed to add nutrition goal for user: " + goal.getUserId(), e);
+        } finally {
+            closeResultSet(keys);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Adds a new nutrition goal using an existing Connection (for transactional support).
+     * Adds a new nutrition goal using an existing connection (used for transactions).
      */
     public int addGoal(Connection conn, NutritionGoal goal) throws SQLException, DatabaseOperationException {
         String sql = "INSERT INTO nutrition_goal (user_id, target_calories, target_protein, " +
                      "target_carbs, target_fats, is_active) VALUES (?, ?, ?, ?, ?, ?)";
 
-        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+
+        try {
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+
             stmt.setInt(1, goal.getUserId());
             stmt.setBigDecimal(2, goal.getTargetCalories());
             stmt.setBigDecimal(3, goal.getTargetProtein());
@@ -72,136 +83,162 @@ public class NutritionGoalDAO {
 
             stmt.executeUpdate();
 
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int id = keys.getInt(1);
-                    goal.setGoalId(id);
-                    return id;
-                } else {
-                    throw new DatabaseOperationException("Goal insertion succeeded but failed to obtain ID.");
-                }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                int id = keys.getInt(1);
+                goal.setGoalId(id);
+                return id;
+            } else {
+                throw new DatabaseOperationException("Goal added but could not get generated ID.");
             }
+
+        } finally {
+            if (keys != null) { try { keys.close(); } catch (SQLException e) { /* ignore */ } }
+            if (stmt != null) { try { stmt.close(); } catch (SQLException e) { /* ignore */ } }
         }
     }
 
     /**
-     * Deactivates all currently active nutrition goals for a user using an existing Connection.
+     * Deactivates all active goals for a user using an existing connection (used for transactions).
      */
     public int deactivateActiveGoals(Connection conn, int userId) throws SQLException {
         String sql = "UPDATE nutrition_goal SET is_active = FALSE WHERE user_id = ? AND is_active = TRUE";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        PreparedStatement stmt = null;
+        try {
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
             return stmt.executeUpdate();
+        } finally {
+            if (stmt != null) { try { stmt.close(); } catch (SQLException e) { /* ignore */ } }
         }
     }
 
     /**
-     * Deactivates all currently active nutrition goals for a user.
+     * Deactivates all active goals for a user.
      */
     public int deactivateActiveGoals(int userId) throws DatabaseOperationException {
-        try (Connection conn = DBConnectionFactory.getConnection()) {
+        Connection conn = null;
+        try {
+            conn = DBConnectionFactory.getConnection();
             return deactivateActiveGoals(conn, userId);
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to deactivate active goals for user ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to deactivate goals for user: " + userId, e);
+        } finally {
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves a nutrition goal by its primary key goal_id.
-     *
-     * @param goalId Primary key ID
-     * @return NutritionGoal object or null if not found
-     * @throws DatabaseOperationException If database operation fails
+     * Gets a nutrition goal by its goal_id.
+     * Returns null if not found.
      */
     public NutritionGoal getGoalById(int goalId) throws DatabaseOperationException {
         String sql = "SELECT goal_id, user_id, target_calories, target_protein, target_carbs, " +
                      "target_fats, is_active, created_at FROM nutrition_goal WHERE goal_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, goalId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to get goal by ID: " + goalId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves all nutrition goals for a given user (historical and active).
-     *
-     * @param userId User ID
-     * @return ArrayList of NutritionGoal objects
-     * @throws DatabaseOperationException If database operation fails
+     * Gets all nutrition goals for a user (active and past).
      */
     public ArrayList<NutritionGoal> getGoalsByUserId(int userId) throws DatabaseOperationException {
         String sql = "SELECT goal_id, user_id, target_calories, target_protein, target_carbs, " +
                      "target_fats, is_active, created_at FROM nutrition_goal WHERE user_id = ? ORDER BY created_at DESC";
 
         ArrayList<NutritionGoal> list = new ArrayList<NutritionGoal>();
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    list.add(mapRow(rs));
-                }
-                return list;
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                list.add(mapRow(rs));
             }
+            return list;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to get goals for user ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to get goals for user: " + userId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves the currently active goal for a user.
-     *
-     * @param userId User ID
-     * @return Active NutritionGoal or null if none
-     * @throws DatabaseOperationException If database operation fails
+     * Gets the currently active nutrition goal for a user.
+     * Returns null if no active goal exists.
      */
     public NutritionGoal getActiveGoalByUserId(int userId) throws DatabaseOperationException {
         String sql = "SELECT goal_id, user_id, target_calories, target_protein, target_carbs, " +
                      "target_fats, is_active, created_at FROM nutrition_goal WHERE user_id = ? AND is_active = TRUE LIMIT 1";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to get active goal for user ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to get active goal for user: " + userId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
      * Updates an existing nutrition goal.
-     *
-     * @param goal NutritionGoal with updated values
-     * @return true if updated, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Returns true if updated successfully.
      */
     public boolean updateGoal(NutritionGoal goal) throws DatabaseOperationException {
         String sql = "UPDATE nutrition_goal SET target_calories = ?, target_protein = ?, " +
                      "target_carbs = ?, target_fats = ?, is_active = ? WHERE goal_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
 
             stmt.setBigDecimal(1, goal.getTargetCalories());
             stmt.setBigDecimal(2, goal.getTargetProtein());
@@ -212,36 +249,50 @@ public class NutritionGoalDAO {
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to update goal ID: " + goal.getGoalId(), e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Deletes a nutrition goal by ID.
-     *
-     * @param goalId Primary key ID
-     * @return true if deleted, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Deletes a nutrition goal by its goal_id.
+     * Returns true if deleted successfully.
      */
     public boolean deleteGoal(int goalId) throws DatabaseOperationException {
         String sql = "DELETE FROM nutrition_goal WHERE goal_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, goalId);
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to delete goal ID: " + goalId, e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
+    /**
+     * Maps a database row to a NutritionGoal object.
+     */
     private NutritionGoal mapRow(ResultSet rs) throws SQLException {
         Timestamp timestamp = rs.getTimestamp("created_at");
-        LocalDateTime createdAt = (timestamp != null) ? timestamp.toLocalDateTime() : null;
+        LocalDateTime createdAt = null;
+        if (timestamp != null) {
+            createdAt = timestamp.toLocalDateTime();
+        }
 
         return new NutritionGoal(
                 rs.getInt("goal_id"),
@@ -253,5 +304,25 @@ public class NutritionGoalDAO {
                 rs.getBoolean("is_active"),
                 createdAt
         );
+    }
+
+    // ---- Helper methods to safely close resources ----
+
+    private void closeConnection(Connection conn) {
+        if (conn != null) {
+            try { conn.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeStatement(PreparedStatement stmt) {
+        if (stmt != null) {
+            try { stmt.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeResultSet(ResultSet rs) {
+        if (rs != null) {
+            try { rs.close(); } catch (SQLException e) { /* ignore */ }
+        }
     }
 }

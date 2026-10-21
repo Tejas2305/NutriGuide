@@ -1,28 +1,20 @@
 package com.nutriguide.exception;
 
 /**
- * ValidationException: Thrown when user input or business-rule validation fails.
+ * ValidationException - thrown when user input fails validation.
+ * For example: empty name, invalid email, negative quantity, etc.
  *
- * <p>Used by the service layer and GUI to reject invalid data before it reaches the database
- * (e.g. negative quantity, empty name, out-of-range age).</p>
- *
- * <p><b>Design Decision</b>: Unchecked (extends {@code RuntimeException}) because
- * validation failures are programming/input errors that should be caught at the boundary
- * (GUI form submission) rather than polluting every method signature with throws clauses.</p>
- *
- * <p>Demonstrates Java Lab Exp 16 — User-defined exception with a field name for
- * targeted error reporting in Swing dialogs.</p>
+ * This is an "unchecked exception" (extends RuntimeException).
+ * The fieldName tells us which input field caused the problem.
  */
 public class ValidationException extends RuntimeException {
 
-    /** The name of the field or parameter that failed validation */
-    private final String fieldName;
+    // The name of the field that failed (e.g. "email", "age", "quantity")
+    private String fieldName;
 
     /**
-     * Constructs a ValidationException for a specific field.
-     *
-     * @param fieldName The field or parameter that failed validation (e.g. "email", "quantity")
-     * @param message   Human-readable explanation of why validation failed
+     * Creates a ValidationException for a specific field.
+     * Example: new ValidationException("email", "Invalid email format.")
      */
     public ValidationException(String fieldName, String message) {
         super(message);
@@ -30,9 +22,7 @@ public class ValidationException extends RuntimeException {
     }
 
     /**
-     * Constructs a ValidationException without a specific field name.
-     *
-     * @param message Human-readable explanation of the validation failure
+     * Creates a ValidationException without a specific field name.
      */
     public ValidationException(String message) {
         super(message);
@@ -40,9 +30,7 @@ public class ValidationException extends RuntimeException {
     }
 
     /**
-     * Returns the field name that triggered this validation error.
-     *
-     * @return Field name, or null if no specific field was identified
+     * Returns which field caused the validation failure.
      */
     public String getFieldName() {
         return fieldName;

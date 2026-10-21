@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpExchange;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -29,14 +30,29 @@ public class HealthHandler extends BaseHandler {
         healthData.put("timestamp", LocalDateTime.now().toString());
 
         boolean dbOk = false;
-        try (Connection conn = DBConnectionFactory.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT 1")) {
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.createStatement();
+            rs = stmt.executeQuery("SELECT 1");
             if (rs.next()) {
                 dbOk = true;
             }
         } catch (Exception ex) {
             dbOk = false;
+        } finally {
+            if (rs != null) {
+                try { rs.close(); } catch (SQLException ignored) {}
+            }
+            if (stmt != null) {
+                try { stmt.close(); } catch (SQLException ignored) {}
+            }
+            if (conn != null) {
+                try { conn.close(); } catch (SQLException ignored) {}
+            }
         }
 
         healthData.put("database", dbOk ? "CONNECTED" : "UNAVAILABLE");

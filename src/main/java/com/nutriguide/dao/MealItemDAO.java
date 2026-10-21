@@ -12,122 +12,135 @@ import java.sql.Statement;
 import java.util.ArrayList;
 
 /**
- * MealItemDAO: Handles JDBC database operations for the 'meal_item' relation.
+ * MealItemDAO - handles all database operations for the 'meal_item' table.
+ * A meal item is a specific food added to a meal with its quantity.
  */
 public class MealItemDAO {
 
     /**
-     * Inserts a new meal item using an existing database connection (for transactions).
-     *
-     * @param conn Active Connection (participating in transaction)
-     * @param item MealItem to insert
-     * @return Generated meal_item_id
-     * @throws SQLException If database operation fails
+     * Adds a meal item using an existing connection.
+     * This version is used during transactions so we can rollback if something fails.
      */
     public int addMealItem(Connection conn, MealItem item) throws SQLException {
         String sql = "INSERT INTO meal_item (meal_id, food_id, quantity) VALUES (?, ?, ?)";
 
-        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+
+        try {
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             stmt.setInt(1, item.getMealId());
             stmt.setInt(2, item.getFoodId());
             stmt.setBigDecimal(3, item.getQuantity());
 
             stmt.executeUpdate();
 
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int id = keys.getInt(1);
-                    item.setMealItemId(id);
-                    return id;
-                } else {
-                    throw new SQLException("MealItem insertion succeeded but failed to obtain ID.");
-                }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                int id = keys.getInt(1);
+                item.setMealItemId(id);
+                return id;
+            } else {
+                throw new SQLException("MealItem added but could not get generated ID.");
             }
+
+        } finally {
+            // Don't close the connection here - caller manages it
+            if (keys != null) { try { keys.close(); } catch (SQLException e) { /* ignore */ } }
+            if (stmt != null) { try { stmt.close(); } catch (SQLException e) { /* ignore */ } }
         }
     }
 
     /**
-     * Inserts a new meal item and returns the generated meal_item_id.
-     *
-     * @param item MealItem to insert
-     * @return Generated meal_item_id
-     * @throws DatabaseOperationException If database operation fails
+     * Adds a meal item and manages its own connection.
      */
     public int addMealItem(MealItem item) throws DatabaseOperationException {
-        try (Connection conn = DBConnectionFactory.getConnection()) {
+        Connection conn = null;
+        try {
+            conn = DBConnectionFactory.getConnection();
             return addMealItem(conn, item);
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to add meal item to meal ID: " + item.getMealId(), e);
+            throw new DatabaseOperationException("Failed to add meal item to meal: " + item.getMealId(), e);
+        } finally {
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves a meal item by its primary key meal_item_id.
-     *
-     * @param mealItemId Primary key ID
-     * @return MealItem object or null if not found
-     * @throws DatabaseOperationException If database operation fails
+     * Gets a single meal item by its meal_item_id.
+     * Returns null if not found.
      */
     public MealItem getMealItemById(int mealItemId) throws DatabaseOperationException {
         String sql = "SELECT meal_item_id, meal_id, food_id, quantity FROM meal_item WHERE meal_item_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, mealItemId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to get meal item by ID: " + mealItemId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves all items belonging to a meal.
-     *
-     * @param mealId Meal ID
-     * @return ArrayList of MealItem objects
-     * @throws DatabaseOperationException If database operation fails
+     * Gets all food items that belong to a specific meal.
      */
     public ArrayList<MealItem> getItemsByMealId(int mealId) throws DatabaseOperationException {
         String sql = "SELECT meal_item_id, meal_id, food_id, quantity FROM meal_item WHERE meal_id = ? ORDER BY meal_item_id";
 
         ArrayList<MealItem> list = new ArrayList<MealItem>();
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, mealId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    list.add(mapRow(rs));
-                }
-                return list;
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                list.add(mapRow(rs));
             }
+            return list;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to get items for meal ID: " + mealId, e);
+            throw new DatabaseOperationException("Failed to get items for meal: " + mealId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Updates an existing meal item quantity.
-     *
-     * @param item MealItem entity with updated quantity
-     * @return true if updated, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Updates an existing meal item.
+     * Returns true if updated successfully.
      */
     public boolean updateMealItem(MealItem item) throws DatabaseOperationException {
         String sql = "UPDATE meal_item SET meal_id = ?, food_id = ?, quantity = ? WHERE meal_item_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, item.getMealId());
             stmt.setInt(2, item.getFoodId());
             stmt.setBigDecimal(3, item.getQuantity());
@@ -135,55 +148,70 @@ public class MealItemDAO {
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to update meal item ID: " + item.getMealItemId(), e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Deletes a specific meal item by ID.
-     *
-     * @param mealItemId Primary key ID
-     * @return true if deleted, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Deletes a single meal item by its ID.
+     * Returns true if deleted successfully.
      */
     public boolean deleteMealItem(int mealItemId) throws DatabaseOperationException {
         String sql = "DELETE FROM meal_item WHERE meal_item_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, mealItemId);
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to delete meal item ID: " + mealItemId, e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Deletes all items for a given meal.
-     *
-     * @param mealId Meal ID
-     * @return true if items were deleted, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Deletes all food items that belong to a specific meal.
+     * Returns true if any rows were deleted.
      */
     public boolean deleteItemsByMealId(int mealId) throws DatabaseOperationException {
         String sql = "DELETE FROM meal_item WHERE meal_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, mealId);
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to delete items for meal ID: " + mealId, e);
+            throw new DatabaseOperationException("Failed to delete items for meal: " + mealId, e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
+    /**
+     * Maps a database row to a MealItem object.
+     */
     private MealItem mapRow(ResultSet rs) throws SQLException {
         return new MealItem(
                 rs.getInt("meal_item_id"),
@@ -191,5 +219,25 @@ public class MealItemDAO {
                 rs.getInt("food_id"),
                 rs.getBigDecimal("quantity")
         );
+    }
+
+    // ---- Helper methods to safely close resources ----
+
+    private void closeConnection(Connection conn) {
+        if (conn != null) {
+            try { conn.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeStatement(PreparedStatement stmt) {
+        if (stmt != null) {
+            try { stmt.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeResultSet(ResultSet rs) {
+        if (rs != null) {
+            try { rs.close(); } catch (SQLException e) { /* ignore */ }
+        }
     }
 }

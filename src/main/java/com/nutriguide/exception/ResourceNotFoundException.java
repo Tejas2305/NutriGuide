@@ -1,30 +1,23 @@
 package com.nutriguide.exception;
 
 /**
- * ResourceNotFoundException: Thrown when a requested entity (user, food, meal, etc.)
- * does not exist in the database.
+ * ResourceNotFoundException - thrown when we look for something in the database
+ * but it doesn't exist (e.g., looking for a user by ID that doesn't exist).
  *
- * <p>Used by DAO and service layers when a lookup by ID or unique key returns no results.</p>
- *
- * <p><b>Design Decision</b>: Unchecked (extends {@code RuntimeException}) because a missing
- * resource typically indicates a logic error or stale reference rather than a recoverable
- * condition. The GUI layer catches this to display "not found" messages.</p>
- *
- * <p>Demonstrates Java Lab Exp 16 — User-defined exception with resource-type tracking.</p>
+ * This is an "unchecked exception" (extends RuntimeException).
  */
 public class ResourceNotFoundException extends RuntimeException {
 
-    /** The type of resource that was not found (e.g. "User", "Food", "Meal") */
-    private final String resourceType;
+    // The type of resource that was not found (e.g. "User", "Food", "Meal")
+    private String resourceType;
 
-    /** The identifier that was used in the failed lookup */
-    private final Object resourceId;
+    // The ID or value that was searched for
+    private Object resourceId;
 
     /**
-     * Constructs a ResourceNotFoundException for a specific resource type and identifier.
-     *
-     * @param resourceType The entity type (e.g. "User", "Food", "Meal")
-     * @param resourceId   The identifier that was searched for (e.g. userId, email)
+     * Creates a ResourceNotFoundException with the resource type and ID.
+     * Example: new ResourceNotFoundException("User", 5)
+     * This will produce message: "User not found with identifier: 5"
      */
     public ResourceNotFoundException(String resourceType, Object resourceId) {
         super(resourceType + " not found with identifier: " + resourceId);
@@ -33,9 +26,7 @@ public class ResourceNotFoundException extends RuntimeException {
     }
 
     /**
-     * Constructs a ResourceNotFoundException with a custom message.
-     *
-     * @param message Custom error message
+     * Creates a ResourceNotFoundException with a custom message.
      */
     public ResourceNotFoundException(String message) {
         super(message);
@@ -44,18 +35,14 @@ public class ResourceNotFoundException extends RuntimeException {
     }
 
     /**
-     * Returns the type of resource that was not found.
-     *
-     * @return Resource type string, or null
+     * Returns what type of resource was not found.
      */
     public String getResourceType() {
         return resourceType;
     }
 
     /**
-     * Returns the identifier used in the failed lookup.
-     *
-     * @return Resource identifier, or null
+     * Returns the ID that was searched for.
      */
     public Object getResourceId() {
         return resourceId;

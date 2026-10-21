@@ -9,17 +9,17 @@ import com.nutriguide.util.PasswordUtil;
 import com.nutriguide.util.ValidationUtil;
 
 /**
- * AuthenticationService: Handles user login and registration business logic.
+ * AuthenticationService - handles user login and registration.
  *
- * Demonstrates:
- * - Simple business logic and input validation (Java Lab Exp 1-2)
- * - Static utility usage (PasswordUtil, ValidationUtil)
- * - Custom exception throwing (AuthenticationException, ValidationException)
- * - Clean delegation to UserDAO without embedded SQL
+ * This service:
+ * - Validates user input (email format, password length, etc.)
+ * - Hashes passwords before saving to the database
+ * - Verifies passwords during login
+ * - Delegates database work to UserDAO
  */
 public class AuthenticationService {
 
-    private final UserDAO userDAO;
+    private UserDAO userDAO;
 
     public AuthenticationService() {
         this.userDAO = new UserDAO();
@@ -30,67 +30,61 @@ public class AuthenticationService {
     }
 
     /**
-     * Authenticates a user with email and plain password.
+     * Logs in a user with their email and password.
      *
-     * @param email User's email
-     * @param plainPassword Plaintext password entered by user
-     * @return Authenticated User object
-     * @throws AuthenticationException if credentials are invalid or user not found
-     * @throws ValidationException if inputs are malformed
+     * Steps:
+     * 1. Validate email and password format
+     * 2. Look up the user by email in the database
+     * 3. Compare the entered password with the stored hash
+     * 4. Return the user if login is successful
+     *
+     * @param email         The user's email
+     * @param plainPassword The password entered by the user (plain text)
+     * @return The authenticated User object
+     * @throws AuthenticationException    if credentials are wrong
+     * @throws ValidationException        if email/password format is bad
      * @throws DatabaseOperationException if database access fails
      */
     public User login(String email, String plainPassword)
             throws AuthenticationException, ValidationException, DatabaseOperationException {
 
-        // 1. Validate inputs
+        // Step 1: Validate inputs
         ValidationUtil.requireValidEmail(email);
         if (!ValidationUtil.isNotBlank(plainPassword)) {
             throw new ValidationException("password", "Password cannot be blank.");
         }
 
-        // 2. Fetch user by email
+        // Step 2: Find the user by email
         User user = userDAO.getUserByEmail(email.trim());
         if (user == null) {
-            // Use generic message to prevent username enumeration attacks
+            // Use a generic message so hackers can't tell if email exists or not
             throw new AuthenticationException("Invalid email or password.");
         }
 
-        // 3. Verify password against stored hash (PBKDF2 or legacy SHA-256)
-        boolean matches = PasswordUtil.verifyPassword(plainPassword, user.getPasswordHash());
-        if (!matches) {
+        // Step 3: Verify the password
+        boolean passwordMatches = PasswordUtil.verifyPassword(plainPassword, user.getPasswordHash());
+        if (!passwordMatches) {
             throw new AuthenticationException("Invalid email or password.");
         }
 
-        // 4. Automatic migration: upgrade legacy unsalted SHA-256 or lower-iteration PBKDF2 to modern PBKDF2
-        String currentHash = user.getPasswordHash();
-        if (PasswordUtil.needsRehash(currentHash)) {
-            String upgradedHash = PasswordUtil.hashPassword(plainPassword);
-            user.setPasswordHash(upgradedHash);
-            try {
-                boolean saved = userDAO.updateUser(user);
-                if (!saved) {
-                    // Update affected 0 rows; restore original hash so in-memory object accurately reflects persistence
-                    user.setPasswordHash(currentHash);
-                }
-            } catch (Exception ex) {
-                // Database update failed; revert in-memory hash to avoid falsely claiming an upgrade
-                user.setPasswordHash(currentHash);
-                // Non-fatal for authentication: login succeeds safely with verified existing credentials
-            }
-        }
-
-        // 5. Return authenticated user
+        // Step 4: Return the authenticated user
         return user;
     }
 
     /**
-     * Registers a new user with profile information and a plaintext password.
+     * Registers a new user.
      *
-     * @param user User profile details
-     * @param plainPassword Plain password to be hashed
-     * @return Registered User with generated ID
-     * @throws ValidationException if input validation fails
-     * @throws DatabaseOperationException if database insertion fails
+     * Steps:
+     * 1. Validate all fields
+     * 2. Check if email is already registered
+     * 3. Hash the password (never store plain text passwords)
+     * 4. Save the user to the database
+     *
+     * @param user          The user's profile details
+     * @param plainPassword The plain text password to hash and save
+     * @return The registered User with their new user_id
+     * @throws ValidationException        if any input is invalid
+     * @throws DatabaseOperationException if database insert fails
      */
     public User registerUser(User user, String plainPassword)
             throws ValidationException, DatabaseOperationException {
@@ -99,7 +93,7 @@ public class AuthenticationService {
             throw new ValidationException("user", "User details cannot be null.");
         }
 
-        // Validate fields
+        // Step 1: Validate all profile fields
         ValidationUtil.requireNonBlank(user.getName(), "name");
         ValidationUtil.requireValidEmail(user.getEmail());
         ValidationUtil.requireValidAge(user.getAge());
@@ -112,20 +106,20 @@ public class AuthenticationService {
             throw new ValidationException("password", "Password cannot be blank.");
         }
         if (plainPassword.length() < 6) {
-            throw new ValidationException("password", "Password must be at least 6 characters long.");
+            throw new ValidationException("password", "Password must be at least 6 characters.");
         }
 
-        // Check for existing email
+        // Step 2: Check if email is already taken
         User existing = userDAO.getUserByEmail(user.getEmail().trim());
         if (existing != null) {
             throw new ValidationException("email", "Email is already registered: " + user.getEmail());
         }
 
-        // Hash password before saving to database
-        String hash = PasswordUtil.hashPassword(plainPassword);
-        user.setPasswordHash(hash);
+        // Step 3: Hash the password (SHA-256)
+        String hashedPassword = PasswordUtil.hashPassword(plainPassword);
+        user.setPasswordHash(hashedPassword);
 
-        // Persist via DAO
+        // Step 4: Save to database
         int generatedId = userDAO.addUser(user);
         user.setUserId(generatedId);
 

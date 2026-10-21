@@ -19,19 +19,19 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 
 /**
- * NutritionService: Handles BMI calculations, nutrition goal management, and daily nutrient summaries.
+ * NutritionService - handles BMI calculations, nutrition goals, and daily summaries.
  *
- * Demonstrates:
- * - Calling MySQL stored functions (calculate_bmi) via UserDAO
- * - Calling MySQL stored procedures (get_daily_summary) via MealDAO
- * - Querying MySQL views (daily_nutrition_summary) via MealDAO
- * - Input validation using ValidationUtil
+ * Uses:
+ * - MySQL stored function 'calculate_bmi' for BMI calculation
+ * - MySQL stored procedure 'get_daily_summary' for nutrition totals
+ * - MySQL view 'daily_nutrition_summary' for querying nutrition data
+ * - Transactions when saving a new active goal (deactivate old + insert new)
  */
 public class NutritionService {
 
-    private final NutritionGoalDAO goalDAO;
-    private final UserDAO userDAO;
-    private final MealDAO mealDAO;
+    private NutritionGoalDAO goalDAO;
+    private UserDAO userDAO;
+    private MealDAO mealDAO;
 
     public NutritionService() {
         this.goalDAO = new NutritionGoalDAO();
@@ -45,18 +45,13 @@ public class NutritionService {
         this.mealDAO = mealDAO;
     }
 
-    // ========================================================================
-    // BMI Calculations
-    // ========================================================================
+    // ===================================================================
+    // BMI CALCULATIONS
+    // ===================================================================
 
     /**
-     * Calculates BMI for given weight and height using the MySQL stored function 'calculate_bmi' (DBMS Exp 6).
-     *
-     * @param weightKg Weight in kg
-     * @param heightCm Height in cm
-     * @return Computed BMI
-     * @throws ValidationException if inputs are non-positive
-     * @throws DatabaseOperationException if database function execution fails
+     * Calculates BMI using the MySQL stored function 'calculate_bmi'.
+     * Formula (done by database): weight(kg) / (height(m))^2
      */
     public BigDecimal calculateBmi(BigDecimal weightKg, BigDecimal heightCm)
             throws ValidationException, DatabaseOperationException {
@@ -72,12 +67,7 @@ public class NutritionService {
     }
 
     /**
-     * Calculates BMI for a specific user using their profile data.
-     *
-     * @param userId User ID
-     * @return User's BMI
-     * @throws ResourceNotFoundException if user does not exist
-     * @throws DatabaseOperationException if database execution fails
+     * Calculates BMI for a specific user using their stored height and weight.
      */
     public BigDecimal calculateUserBmi(int userId)
             throws ResourceNotFoundException, DatabaseOperationException {
@@ -88,17 +78,12 @@ public class NutritionService {
         return calculateBmi(user.getWeightKg(), user.getHeightCm());
     }
 
-    // ========================================================================
-    // Nutrition Goal Management
-    // ========================================================================
+    // ===================================================================
+    // NUTRITION GOAL MANAGEMENT
+    // ===================================================================
 
     /**
-     * Creates a new nutrition goal after validating that target calories and macros are non-negative.
-     *
-     * @param goal NutritionGoal entity
-     * @return Created NutritionGoal with generated goalId
-     * @throws ValidationException if values are negative or user does not exist
-     * @throws DatabaseOperationException if database insertion fails
+     * Creates a new nutrition goal for a user.
      */
     public NutritionGoal createGoal(NutritionGoal goal)
             throws ValidationException, DatabaseOperationException {
@@ -110,31 +95,27 @@ public class NutritionService {
     }
 
     /**
-     * Retrieves the currently active nutrition goal for a user.
-     *
-     * @param userId User ID
-     * @return Active NutritionGoal
-     * @throws ResourceNotFoundException if no active goal exists
-     * @throws DatabaseOperationException if database retrieval fails
+     * Gets the currently active nutrition goal for a user.
+     * Throws exception if no active goal is found.
      */
     public NutritionGoal getActiveGoal(int userId)
             throws ResourceNotFoundException, DatabaseOperationException {
         NutritionGoal goal = goalDAO.getActiveGoalByUserId(userId);
         if (goal == null) {
-            throw new ResourceNotFoundException("NutritionGoal", "User " + userId);
+            throw new ResourceNotFoundException("No active nutrition goal found for user: " + userId);
         }
         return goal;
     }
 
     /**
-     * Retrieves all goals (active and historical) for a user.
+     * Gets all nutrition goals for a user (active + past history).
      */
     public ArrayList<NutritionGoal> getGoalsByUserId(int userId) throws DatabaseOperationException {
         return goalDAO.getGoalsByUserId(userId);
     }
 
     /**
-     * Retrieves goal history for a user (alias for getGoalsByUserId).
+     * Gets goal history (same as getGoalsByUserId, just an alias).
      */
     public ArrayList<NutritionGoal> getGoalHistory(int userId) throws DatabaseOperationException {
         return getGoalsByUserId(userId);
@@ -151,20 +132,18 @@ public class NutritionService {
     }
 
     /**
-     * Validates goal macronutrient and caloric values including description.
+     * Validates a nutrition goal's values (used before saving).
      */
     public void validateGoal(NutritionGoal goal) throws ValidationException {
         if (goal == null || goal.getUserId() == null) {
             throw new ValidationException("goal", "Goal details and userId must not be null.");
         }
-        if (goal.getDescription() == null || goal.getDescription().trim().isEmpty()) {
-            throw new ValidationException("description", "Goal description cannot be empty.");
-        }
+        // description is optional - getDescription() returns a default if null
         validateNutrientValues(goal);
     }
 
     /**
-     * Helper method to validate non-negative nutrient values and non-null goal details.
+     * Helper: validates that all nutrient target values are non-negative.
      */
     private void validateNutrientValues(NutritionGoal goal) throws ValidationException {
         if (goal == null || goal.getUserId() == null) {
@@ -185,10 +164,13 @@ public class NutritionService {
     }
 
     /**
-     * Saves a new active nutrition goal transactionally (DBMS Exp 10):
-     * 1. Deactivates any existing active goals for this user.
-     * 2. Inserts the new goal with is_active = TRUE.
-     * 3. Commits transaction (preserves historical goals).
+     * Saves a new nutrition goal as the active goal using a transaction.
+     *
+     * Transaction steps:
+     * 1. Deactivate any existing active goals for this user
+     * 2. Insert the new goal with is_active = TRUE
+     * 3. Commit - if both steps worked
+     * 4. Rollback - if either step failed
      */
     public NutritionGoal saveNewActiveGoal(NutritionGoal newGoal)
             throws ValidationException, DatabaseOperationException {
@@ -197,9 +179,9 @@ public class NutritionService {
         Connection conn = null;
         try {
             conn = DBConnectionFactory.getConnection();
-            conn.setAutoCommit(false); // Begin transaction
+            conn.setAutoCommit(false); // Start transaction
 
-            // Step 1: Deactivate existing active goals for this user
+            // Step 1: Deactivate current active goals
             goalDAO.deactivateActiveGoals(conn, newGoal.getUserId());
 
             // Step 2: Insert new goal as active
@@ -207,32 +189,35 @@ public class NutritionService {
             int id = goalDAO.addGoal(conn, newGoal);
             newGoal.setGoalId(id);
 
+            // Step 3: Commit - everything succeeded
             conn.commit();
             return newGoal;
 
         } catch (SQLException e) {
+            // Step 4: Rollback - something failed
             if (conn != null) {
                 try {
                     conn.rollback();
                 } catch (SQLException rollbackEx) {
-                    // Suppress
+                    rollbackEx.printStackTrace();
                 }
             }
-            throw new DatabaseOperationException("Failed to save new active goal with transaction rollback", e);
+            throw new DatabaseOperationException("Failed to save new active goal - transaction rolled back.", e);
+
         } finally {
             if (conn != null) {
                 try {
                     conn.setAutoCommit(true);
                     conn.close();
-                } catch (SQLException closeEx) {
-                    // Suppress
+                } catch (SQLException e) {
+                    e.printStackTrace();
                 }
             }
         }
     }
 
     /**
-     * Updates an existing nutrition goal, verifying user ownership.
+     * Updates a nutrition goal, verifying it belongs to the given user.
      */
     public boolean updateGoalForUser(NutritionGoal goal, int userId)
             throws ResourceNotFoundException, ValidationException, DatabaseOperationException {
@@ -246,7 +231,7 @@ public class NutritionService {
             throw new ResourceNotFoundException("NutritionGoal", goal.getGoalId());
         }
         if (existing.getUserId() == null || existing.getUserId() != userId) {
-            throw new ValidationException("userId", "Unauthorized: Goal #" + goal.getGoalId() + " does not belong to user " + userId);
+            throw new ValidationException("userId", "Goal #" + goal.getGoalId() + " does not belong to user " + userId);
         }
 
         goal.setUserId(userId);
@@ -254,7 +239,7 @@ public class NutritionService {
     }
 
     /**
-     * Deactivates a specific goal for a user, verifying user ownership.
+     * Deactivates a specific goal for a user.
      */
     public boolean deactivateGoalForUser(int goalId, int userId)
             throws ResourceNotFoundException, ValidationException, DatabaseOperationException {
@@ -263,7 +248,7 @@ public class NutritionService {
             throw new ResourceNotFoundException("NutritionGoal", goalId);
         }
         if (existing.getUserId() == null || existing.getUserId() != userId) {
-            throw new ValidationException("userId", "Unauthorized: Goal #" + goalId + " does not belong to user " + userId);
+            throw new ValidationException("userId", "Goal #" + goalId + " does not belong to user " + userId);
         }
 
         existing.setIsActive(false);
@@ -271,7 +256,7 @@ public class NutritionService {
     }
 
     /**
-     * Deactivates the currently active nutrition goal for a user.
+     * Deactivates the currently active goal for a user.
      */
     public boolean deactivateActiveGoal(int userId)
             throws ResourceNotFoundException, DatabaseOperationException {
@@ -280,12 +265,13 @@ public class NutritionService {
         return goalDAO.updateGoal(active);
     }
 
-    // ========================================================================
-    // Daily Nutrition Summary
-    // ========================================================================
+    // ===================================================================
+    // DAILY NUTRITION SUMMARY
+    // ===================================================================
 
     /**
-     * Retrieves the daily nutrition summary for a user on a given date using the database view (DBMS Exp 4).
+     * Gets the daily nutrition summary from the database VIEW.
+     * A VIEW is a pre-saved SELECT query in MySQL.
      */
     public DailyNutritionSummary getDailySummaryFromView(int userId, LocalDate date)
             throws DatabaseOperationException {
@@ -294,7 +280,8 @@ public class NutritionService {
     }
 
     /**
-     * Retrieves the daily nutrition summary for a user on a given date using the stored procedure (DBMS Exp 7).
+     * Gets the daily nutrition summary using the stored PROCEDURE.
+     * A stored procedure is a set of SQL statements saved in the database.
      */
     public DailyNutritionSummary getDailySummaryFromProcedure(int userId, LocalDate date)
             throws DatabaseOperationException {

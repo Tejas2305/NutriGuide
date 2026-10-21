@@ -14,23 +14,25 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 /**
- * RecommendationDAO: Handles JDBC database operations for the 'recommendation' relation.
- * Does not generate recommendations — only stores and queries them.
+ * RecommendationDAO - handles all database operations for the 'recommendation' table.
+ * This class only stores and retrieves recommendations - it does not generate them.
  */
 public class RecommendationDAO {
 
     /**
-     * Inserts a new recommendation record and returns the generated rec_id.
-     *
-     * @param recommendation Recommendation entity
-     * @return Generated rec_id
-     * @throws DatabaseOperationException If database operation fails
+     * Adds a new recommendation record to the database.
+     * Returns the auto-generated rec_id.
      */
     public int addRecommendation(Recommendation recommendation) throws DatabaseOperationException {
         String sql = "INSERT INTO recommendation (user_id, message, rec_type) VALUES (?, ?, ?)";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 
             stmt.setInt(1, recommendation.getUserId());
             stmt.setString(2, recommendation.getMessage());
@@ -38,100 +40,122 @@ public class RecommendationDAO {
 
             stmt.executeUpdate();
 
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int id = keys.getInt(1);
-                    recommendation.setRecId(id);
-                    return id;
-                } else {
-                    throw new DatabaseOperationException("Recommendation insertion succeeded but failed to obtain ID.");
-                }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                int id = keys.getInt(1);
+                recommendation.setRecId(id);
+                return id;
+            } else {
+                throw new DatabaseOperationException("Recommendation added but could not get generated ID.");
             }
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to add recommendation for user ID: " + recommendation.getUserId(), e);
+            throw new DatabaseOperationException("Failed to add recommendation for user: " + recommendation.getUserId(), e);
+        } finally {
+            closeResultSet(keys);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves a recommendation by primary key ID.
-     *
-     * @param recId Primary key ID
-     * @return Recommendation object or null if not found
-     * @throws DatabaseOperationException If database operation fails
+     * Gets a recommendation by its rec_id.
+     * Returns null if not found.
      */
     public Recommendation getRecommendationById(int recId) throws DatabaseOperationException {
         String sql = "SELECT rec_id, user_id, message, rec_type, generated_at FROM recommendation WHERE rec_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, recId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to get recommendation by ID: " + recId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves all recommendations generated for a user.
-     *
-     * @param userId User ID
-     * @return ArrayList of Recommendation objects
-     * @throws DatabaseOperationException If database operation fails
+     * Gets all recommendations for a specific user, newest first.
      */
     public ArrayList<Recommendation> getRecommendationsByUserId(int userId) throws DatabaseOperationException {
         String sql = "SELECT rec_id, user_id, message, rec_type, generated_at " +
                      "FROM recommendation WHERE user_id = ? ORDER BY generated_at DESC";
 
         ArrayList<Recommendation> list = new ArrayList<Recommendation>();
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    list.add(mapRow(rs));
-                }
-                return list;
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                list.add(mapRow(rs));
             }
+            return list;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to get recommendations for user ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to get recommendations for user: " + userId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Deletes a recommendation by ID.
-     *
-     * @param recId Primary key ID
-     * @return true if deleted, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Deletes a recommendation by its rec_id.
+     * Returns true if deleted successfully.
      */
     public boolean deleteRecommendation(int recId) throws DatabaseOperationException {
         String sql = "DELETE FROM recommendation WHERE rec_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, recId);
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to delete recommendation ID: " + recId, e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
+    /**
+     * Maps a database row to a Recommendation object.
+     */
     private Recommendation mapRow(ResultSet rs) throws SQLException {
         Timestamp timestamp = rs.getTimestamp("generated_at");
-        LocalDateTime generatedAt = (timestamp != null) ? timestamp.toLocalDateTime() : null;
+        LocalDateTime generatedAt = null;
+        if (timestamp != null) {
+            generatedAt = timestamp.toLocalDateTime();
+        }
 
         return new Recommendation(
                 rs.getInt("rec_id"),
@@ -140,5 +164,25 @@ public class RecommendationDAO {
                 rs.getString("rec_type"),
                 generatedAt
         );
+    }
+
+    // ---- Helper methods to safely close resources ----
+
+    private void closeConnection(Connection conn) {
+        if (conn != null) {
+            try { conn.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeStatement(PreparedStatement stmt) {
+        if (stmt != null) {
+            try { stmt.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeResultSet(ResultSet rs) {
+        if (rs != null) {
+            try { rs.close(); } catch (SQLException e) { /* ignore */ }
+        }
     }
 }

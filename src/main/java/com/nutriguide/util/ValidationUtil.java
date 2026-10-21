@@ -7,45 +7,43 @@ import java.time.LocalDate;
 import java.util.regex.Pattern;
 
 /**
- * ValidationUtil: Static utility class providing input validation for NutriGuide.
+ * ValidationUtil - a utility class with static methods for input validation.
  *
- * Used across the GUI and Service layers before passing data to the DAO layer.
- * Demonstrates basic Java concepts: static methods, final class, private constructor,
- * and custom exception throwing.
+ * All methods are static, so you call them like:
+ *   ValidationUtil.requireValidEmail("test@example.com");
+ *
+ * Methods that "require" something will throw a ValidationException if the check fails.
+ * Methods that "is..." just return true or false.
  */
 public final class ValidationUtil {
 
-    // Regex pattern for validating email addresses: local-part@domain.tld
+    // Email pattern: checks for format like "user@domain.com"
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
-    // Domain range constants
+    // Valid ranges for age, height, and weight
     public static final int MIN_AGE = 1;
     public static final int MAX_AGE = 150;
-
     public static final double MIN_HEIGHT_CM = 30.0;
     public static final double MAX_HEIGHT_CM = 300.0;
-
     public static final double MIN_WEIGHT_KG = 1.0;
     public static final double MAX_WEIGHT_KG = 500.0;
 
-    // Private constructor prevents instantiation
+    // Private constructor: prevents creating objects of this class
     private ValidationUtil() {
     }
 
-    // ========================================================================
-    // String & Email Validation
-    // ========================================================================
+    // ========== String Validation ==========
 
     /**
-     * Checks if a string is non-null and not empty after trimming.
+     * Returns true if the string is not null and not empty (after trimming spaces).
      */
     public static boolean isNotBlank(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
     /**
-     * Validates that a string is not blank; throws ValidationException otherwise.
+     * Throws ValidationException if the string is blank.
      */
     public static boolean requireNonBlank(String value, String fieldName) {
         if (!isNotBlank(value)) {
@@ -55,14 +53,14 @@ public final class ValidationUtil {
     }
 
     /**
-     * Checks if an email string matches the valid email format.
+     * Returns true if the email matches a valid format.
      */
     public static boolean isValidEmail(String email) {
         return email != null && EMAIL_PATTERN.matcher(email.trim()).matches();
     }
 
     /**
-     * Validates email format; throws ValidationException on mismatch.
+     * Throws ValidationException if the email is invalid.
      */
     public static boolean requireValidEmail(String email) {
         if (!isValidEmail(email)) {
@@ -71,58 +69,54 @@ public final class ValidationUtil {
         return true;
     }
 
-    // ========================================================================
-    // Numeric Validations
-    // ========================================================================
+    // ========== Number Validation ==========
 
     /**
-     * Checks if an integer is strictly positive (> 0).
+     * Returns true if the integer is greater than 0.
      */
     public static boolean isPositiveInt(int value) {
         return value > 0;
     }
 
     /**
-     * Checks if a double is strictly positive (> 0.0).
+     * Returns true if the double is greater than 0.
      */
     public static boolean isPositiveDouble(double value) {
         return value > 0.0;
     }
 
     /**
-     * Checks if a BigDecimal is strictly positive (> 0).
+     * Returns true if the BigDecimal is not null and greater than 0.
      */
     public static boolean isPositiveBigDecimal(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) > 0;
     }
 
     /**
-     * Checks if a double is non-negative (>= 0.0).
+     * Returns true if the double is 0 or more (not negative).
      */
     public static boolean isNonNegativeDouble(double value) {
         return value >= 0.0;
     }
 
     /**
-     * Checks if a BigDecimal is non-negative (>= 0).
+     * Returns true if the BigDecimal is not null and 0 or more.
      */
     public static boolean isNonNegativeBigDecimal(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) >= 0;
     }
 
-    // ========================================================================
-    // Domain Validations: Age, Height, Weight, Quantity
-    // ========================================================================
+    // ========== Domain Validation: Age, Height, Weight ==========
 
     /**
-     * Checks if age falls within [MIN_AGE, MAX_AGE].
+     * Returns true if the age is between MIN_AGE and MAX_AGE.
      */
     public static boolean isValidAge(int age) {
         return age >= MIN_AGE && age <= MAX_AGE;
     }
 
     /**
-     * Validates age; throws ValidationException if out of bounds.
+     * Throws ValidationException if the age is out of range.
      */
     public static boolean requireValidAge(int age) {
         if (!isValidAge(age)) {
@@ -132,14 +126,14 @@ public final class ValidationUtil {
     }
 
     /**
-     * Checks if height falls within [MIN_HEIGHT_CM, MAX_HEIGHT_CM].
+     * Returns true if the height is within valid range.
      */
     public static boolean isValidHeight(double heightCm) {
         return heightCm >= MIN_HEIGHT_CM && heightCm <= MAX_HEIGHT_CM;
     }
 
     /**
-     * Validates height; throws ValidationException if out of bounds.
+     * Throws ValidationException if the height is out of range.
      */
     public static boolean requireValidHeight(double heightCm) {
         if (!isValidHeight(heightCm)) {
@@ -149,14 +143,14 @@ public final class ValidationUtil {
     }
 
     /**
-     * Checks if weight falls within [MIN_WEIGHT_KG, MAX_WEIGHT_KG].
+     * Returns true if the weight is within valid range.
      */
     public static boolean isValidWeight(double weightKg) {
         return weightKg >= MIN_WEIGHT_KG && weightKg <= MAX_WEIGHT_KG;
     }
 
     /**
-     * Validates weight; throws ValidationException if out of bounds.
+     * Throws ValidationException if the weight is out of range.
      */
     public static boolean requireValidWeight(double weightKg) {
         if (!isValidWeight(weightKg)) {
@@ -166,14 +160,14 @@ public final class ValidationUtil {
     }
 
     /**
-     * Checks if meal or plan item quantity is strictly positive (> 0.0).
+     * Returns true if the quantity is greater than 0.
      */
     public static boolean isValidQuantity(double quantity) {
         return quantity > 0.0;
     }
 
     /**
-     * Validates quantity; throws ValidationException if <= 0.0.
+     * Throws ValidationException if the quantity is 0 or less.
      */
     public static boolean requireValidQuantity(double quantity) {
         if (!isValidQuantity(quantity)) {
@@ -182,12 +176,10 @@ public final class ValidationUtil {
         return true;
     }
 
-    // ========================================================================
-    // Date Validations
-    // ========================================================================
+    // ========== Date Validation ==========
 
     /**
-     * Validates that a date is non-null; throws ValidationException otherwise.
+     * Throws ValidationException if the date is null.
      */
     public static boolean requireNonNullDate(LocalDate date, String fieldName) {
         if (date == null) {
@@ -197,7 +189,7 @@ public final class ValidationUtil {
     }
 
     /**
-     * Validates that endDate is not before startDate.
+     * Throws ValidationException if endDate is before startDate.
      */
     public static boolean requireValidDateRange(LocalDate startDate, LocalDate endDate) {
         requireNonNullDate(startDate, "startDate");

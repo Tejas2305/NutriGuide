@@ -16,23 +16,25 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 /**
- * MealPlanDAO: Handles JDBC database operations for the 'meal_plan' relation.
+ * MealPlanDAO - handles all database operations for the 'meal_plan' table.
  */
 public class MealPlanDAO {
 
     /**
-     * Adds a new meal plan and returns the generated meal_plan_id.
-     *
-     * @param plan MealPlan entity to insert
-     * @return Generated meal_plan_id
-     * @throws DatabaseOperationException If database operation fails
+     * Adds a new meal plan to the database.
+     * Returns the auto-generated meal_plan_id.
      */
     public int addMealPlan(MealPlan plan) throws DatabaseOperationException {
         String sql = "INSERT INTO meal_plan (user_id, plan_name, start_date, end_date, is_active) " +
                      "VALUES (?, ?, ?, ?, ?)";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 
             stmt.setInt(1, plan.getUserId());
             stmt.setString(2, plan.getPlanName());
@@ -42,116 +44,134 @@ public class MealPlanDAO {
 
             stmt.executeUpdate();
 
-            try (ResultSet keys = stmt.getGeneratedKeys()) {
-                if (keys.next()) {
-                    int id = keys.getInt(1);
-                    plan.setMealPlanId(id);
-                    return id;
-                } else {
-                    throw new DatabaseOperationException("MealPlan insertion succeeded but failed to obtain ID.");
-                }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                int id = keys.getInt(1);
+                plan.setMealPlanId(id);
+                return id;
+            } else {
+                throw new DatabaseOperationException("Meal plan added but could not get generated ID.");
             }
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to add meal plan for user ID: " + plan.getUserId(), e);
+            throw new DatabaseOperationException("Failed to add meal plan for user: " + plan.getUserId(), e);
+        } finally {
+            closeResultSet(keys);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves a meal plan by primary key ID.
-     *
-     * @param mealPlanId Primary key ID
-     * @return MealPlan object or null if not found
-     * @throws DatabaseOperationException If database operation fails
+     * Gets a meal plan by its meal_plan_id.
+     * Returns null if not found.
      */
     public MealPlan getMealPlanById(int mealPlanId) throws DatabaseOperationException {
         String sql = "SELECT meal_plan_id, user_id, plan_name, start_date, end_date, " +
                      "is_active, created_at FROM meal_plan WHERE meal_plan_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, mealPlanId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to get meal plan by ID: " + mealPlanId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves all meal plans for a user.
-     *
-     * @param userId User ID
-     * @return ArrayList of MealPlan objects
-     * @throws DatabaseOperationException If database operation fails
+     * Gets all meal plans for a specific user.
      */
     public ArrayList<MealPlan> getMealPlansByUserId(int userId) throws DatabaseOperationException {
         String sql = "SELECT meal_plan_id, user_id, plan_name, start_date, end_date, " +
                      "is_active, created_at FROM meal_plan WHERE user_id = ? ORDER BY start_date DESC";
 
         ArrayList<MealPlan> list = new ArrayList<MealPlan>();
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    list.add(mapRow(rs));
-                }
-                return list;
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                list.add(mapRow(rs));
             }
+            return list;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to get meal plans for user ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to get meal plans for user: " + userId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves the currently active meal plan for a user.
-     *
-     * @param userId User ID
-     * @return Active MealPlan or null if none
-     * @throws DatabaseOperationException If database operation fails
+     * Gets the currently active meal plan for a user.
+     * Returns null if no active plan found.
      */
     public MealPlan getActiveMealPlanByUserId(int userId) throws DatabaseOperationException {
         String sql = "SELECT meal_plan_id, user_id, plan_name, start_date, end_date, " +
                      "is_active, created_at FROM meal_plan WHERE user_id = ? AND is_active = TRUE LIMIT 1";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to get active meal plan for user ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to get active meal plan for user: " + userId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
      * Updates an existing meal plan.
-     *
-     * @param plan MealPlan entity with updated fields
-     * @return true if updated, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Returns true if updated successfully.
      */
     public boolean updateMealPlan(MealPlan plan) throws DatabaseOperationException {
         String sql = "UPDATE meal_plan SET plan_name = ?, start_date = ?, end_date = ?, " +
                      "is_active = ? WHERE meal_plan_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
 
             stmt.setString(1, plan.getPlanName());
             stmt.setDate(2, Date.valueOf(plan.getStartDate()));
@@ -161,41 +181,63 @@ public class MealPlanDAO {
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to update meal plan ID: " + plan.getMealPlanId(), e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Deletes a meal plan by ID.
-     *
-     * @param mealPlanId Primary key ID
-     * @return true if deleted, false otherwise
-     * @throws DatabaseOperationException If database operation fails
+     * Deletes a meal plan by its meal_plan_id.
+     * Returns true if deleted successfully.
      */
     public boolean deleteMealPlan(int mealPlanId) throws DatabaseOperationException {
         String sql = "DELETE FROM meal_plan WHERE meal_plan_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, mealPlanId);
 
             int rows = stmt.executeUpdate();
             return rows > 0;
+
         } catch (SQLException e) {
             throw new DatabaseOperationException("Failed to delete meal plan ID: " + mealPlanId, e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
+    /**
+     * Maps a database row to a MealPlan object.
+     */
     private MealPlan mapRow(ResultSet rs) throws SQLException {
         Date startDate = rs.getDate("start_date");
         Date endDate = rs.getDate("end_date");
         Timestamp timestamp = rs.getTimestamp("created_at");
 
-        LocalDate sDate = (startDate != null) ? startDate.toLocalDate() : null;
-        LocalDate eDate = (endDate != null) ? endDate.toLocalDate() : null;
-        LocalDateTime createdAt = (timestamp != null) ? timestamp.toLocalDateTime() : null;
+        LocalDate sDate = null;
+        if (startDate != null) {
+            sDate = startDate.toLocalDate();
+        }
+
+        LocalDate eDate = null;
+        if (endDate != null) {
+            eDate = endDate.toLocalDate();
+        }
+
+        LocalDateTime createdAt = null;
+        if (timestamp != null) {
+            createdAt = timestamp.toLocalDateTime();
+        }
 
         return new MealPlan(
                 rs.getInt("meal_plan_id"),
@@ -206,5 +248,25 @@ public class MealPlanDAO {
                 rs.getBoolean("is_active"),
                 createdAt
         );
+    }
+
+    // ---- Helper methods to safely close resources ----
+
+    private void closeConnection(Connection conn) {
+        if (conn != null) {
+            try { conn.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeStatement(PreparedStatement stmt) {
+        if (stmt != null) {
+            try { stmt.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
+
+    private void closeResultSet(ResultSet rs) {
+        if (rs != null) {
+            try { rs.close(); } catch (SQLException e) { /* ignore */ }
+        }
     }
 }

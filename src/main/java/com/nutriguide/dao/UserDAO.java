@@ -15,32 +15,26 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 /**
- * UserDAO: Handles JDBC database operations for the 'user_profile' relation.
- *
- * Demonstrates Java Lab Manual concepts:
- * - Exp 3: Class methods and encapsulation
- * - Exp 5: ArrayList collection
- * - Exp 14-15: Exception handling with try-catch and throws
- * - Exp 19: JDBC SELECT queries
- * - Exp 20: JDBC INSERT, UPDATE, DELETE statements
- * - Exp 21-22: DriverManager and PreparedStatement with parameterized queries
- * - Exp 23: ResultSet navigation
+ * UserDAO - handles all database operations for the 'user_profile' table.
+ * DAO stands for Data Access Object - it separates database code from the rest of the app.
  */
 public class UserDAO {
 
     /**
-     * Inserts a new user into the database and returns the generated user_id.
-     *
-     * @param user The user entity to persist
-     * @return Generated auto-increment user_id
-     * @throws DatabaseOperationException If a database access error occurs
+     * Adds a new user to the database.
+     * Returns the auto-generated user_id created by MySQL.
      */
     public int addUser(User user) throws DatabaseOperationException {
         String sql = "INSERT INTO user_profile (name, email, password_hash, age, gender, " +
                      "height_cm, weight_kg, activity_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
 
             stmt.setString(1, user.getName());
             stmt.setString(2, user.getEmail());
@@ -53,87 +47,103 @@ public class UserDAO {
 
             stmt.executeUpdate();
 
-            try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
-                if (generatedKeys.next()) {
-                    int generatedId = generatedKeys.getInt(1);
-                    user.setUserId(generatedId);
-                    return generatedId;
-                } else {
-                    throw new DatabaseOperationException("User insertion succeeded but failed to obtain generated ID.");
-                }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                int generatedId = keys.getInt(1);
+                user.setUserId(generatedId);
+                return generatedId;
+            } else {
+                throw new DatabaseOperationException("User added but could not get generated ID.");
             }
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to add user with email: " + user.getEmail(), e);
+            throw new DatabaseOperationException("Failed to add user: " + user.getEmail(), e);
+        } finally {
+            // Always close resources in finally block
+            closeResultSet(keys);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves a user by their unique primary key ID.
-     *
-     * @param userId The primary key ID to find
-     * @return User object if found, or null if not found
-     * @throws DatabaseOperationException If a database access error occurs
+     * Finds a user by their user_id (primary key).
+     * Returns null if no user is found with that ID.
      */
     public User getUserById(int userId) throws DatabaseOperationException {
         String sql = "SELECT user_id, name, email, password_hash, age, gender, " +
                      "height_cm, weight_kg, activity_level, created_at FROM user_profile WHERE user_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null; // No user found
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to fetch user by ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to get user by ID: " + userId, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves a user by their unique email address.
-     *
-     * @param email The email address to look up
-     * @return User object if found, or null if not found
-     * @throws DatabaseOperationException If a database access error occurs
+     * Finds a user by their email address.
+     * Returns null if no user is found with that email.
      */
     public User getUserByEmail(String email) throws DatabaseOperationException {
         String sql = "SELECT user_id, name, email, password_hash, age, gender, " +
                      "height_cm, weight_kg, activity_level, created_at FROM user_profile WHERE email = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setString(1, email);
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapRow(rs);
-                }
-                return null;
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return mapRow(rs);
             }
+            return null; // No user found
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to fetch user by email: " + email, e);
+            throw new DatabaseOperationException("Failed to get user by email: " + email, e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
      * Updates an existing user's profile details.
-     *
-     * @param user The user with updated attributes
-     * @return true if a row was updated, false otherwise
-     * @throws DatabaseOperationException If a database access error occurs
+     * Returns true if the update was successful.
      */
     public boolean updateUser(User user) throws DatabaseOperationException {
         String sql = "UPDATE user_profile SET name = ?, email = ?, password_hash = ?, age = ?, " +
                      "gender = ?, height_cm = ?, weight_kg = ?, activity_level = ? WHERE user_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
 
             stmt.setString(1, user.getName());
             stmt.setString(2, user.getEmail());
@@ -147,68 +157,115 @@ public class UserDAO {
 
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to update user with ID: " + user.getUserId(), e);
+            throw new DatabaseOperationException("Failed to update user ID: " + user.getUserId(), e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Deletes a user by their primary key ID.
-     *
-     * @param userId The primary key ID of the user to delete
-     * @return true if a row was deleted, false otherwise
-     * @throws DatabaseOperationException If a database access error occurs
+     * Deletes a user from the database by their user_id.
+     * Returns true if a row was deleted.
      */
     public boolean deleteUser(int userId) throws DatabaseOperationException {
         String sql = "DELETE FROM user_profile WHERE user_id = ?";
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
 
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
             stmt.setInt(1, userId);
 
             int rowsAffected = stmt.executeUpdate();
             return rowsAffected > 0;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to delete user with ID: " + userId, e);
+            throw new DatabaseOperationException("Failed to delete user ID: " + userId, e);
+        } finally {
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Retrieves all users currently registered in the system.
-     *
-     * @return ArrayList of User objects
-     * @throws DatabaseOperationException If a database access error occurs
+     * Gets all users from the database.
+     * Returns an ArrayList (list) of User objects.
      */
     public ArrayList<User> getAllUsers() throws DatabaseOperationException {
         String sql = "SELECT user_id, name, email, password_hash, age, gender, " +
                      "height_cm, weight_kg, activity_level, created_at FROM user_profile ORDER BY user_id";
 
         ArrayList<User> userList = new ArrayList<User>();
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
 
             while (rs.next()) {
                 userList.add(mapRow(rs));
             }
             return userList;
+
         } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to retrieve all users", e);
+            throw new DatabaseOperationException("Failed to get all users", e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
     }
 
     /**
-     * Helper method to map the current row of a ResultSet to a User entity.
-     *
-     * @param rs Active ResultSet positioned at a valid row
-     * @return Fully populated User object
-     * @throws SQLException If column reading fails
+     * Calls the MySQL stored function 'calculate_bmi' to compute BMI.
+     * The function is defined in the database and does the calculation.
+     */
+    public BigDecimal calculateBmi(BigDecimal weightKg, BigDecimal heightCm) throws DatabaseOperationException {
+        String sql = "SELECT calculate_bmi(?, ?)";
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DBConnectionFactory.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setBigDecimal(1, weightKg);
+            stmt.setBigDecimal(2, heightCm);
+
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getBigDecimal(1);
+            }
+            return BigDecimal.ZERO;
+
+        } catch (SQLException e) {
+            throw new DatabaseOperationException("Failed to calculate BMI", e);
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
+        }
+    }
+
+    /**
+     * Maps a row from the ResultSet to a User object.
+     * This is called each time we read a user from the database.
      */
     private User mapRow(ResultSet rs) throws SQLException {
         Timestamp timestamp = rs.getTimestamp("created_at");
-        LocalDateTime createdAt = (timestamp != null) ? timestamp.toLocalDateTime() : null;
+        LocalDateTime createdAt = null;
+        if (timestamp != null) {
+            createdAt = timestamp.toLocalDateTime();
+        }
 
         return new User(
                 rs.getInt("user_id"),
@@ -224,31 +281,23 @@ public class UserDAO {
         );
     }
 
-    /**
-     * Calls the MySQL stored function 'calculate_bmi' (DBMS Exp 6).
-     *
-     * @param weightKg Weight in kg
-     * @param heightCm Height in cm
-     * @return Computed BMI from database function
-     * @throws DatabaseOperationException If database operation fails
-     */
-    public BigDecimal calculateBmi(BigDecimal weightKg, BigDecimal heightCm) throws DatabaseOperationException {
-        String sql = "SELECT calculate_bmi(?, ?)";
+    // ---- Helper methods to safely close resources ----
 
-        try (Connection conn = DBConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    private void closeConnection(Connection conn) {
+        if (conn != null) {
+            try { conn.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
 
-            stmt.setBigDecimal(1, weightKg);
-            stmt.setBigDecimal(2, heightCm);
+    private void closeStatement(PreparedStatement stmt) {
+        if (stmt != null) {
+            try { stmt.close(); } catch (SQLException e) { /* ignore */ }
+        }
+    }
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getBigDecimal(1);
-                }
-                return BigDecimal.ZERO;
-            }
-        } catch (SQLException e) {
-            throw new DatabaseOperationException("Failed to calculate BMI via stored function", e);
+    private void closeResultSet(ResultSet rs) {
+        if (rs != null) {
+            try { rs.close(); } catch (SQLException e) { /* ignore */ }
         }
     }
 }

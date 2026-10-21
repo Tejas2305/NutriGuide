@@ -17,18 +17,18 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 
 /**
- * MealService: Handles meal logging and meal items management.
+ * MealService - handles all meal logging business logic.
  *
- * Demonstrates:
- * - JDBC Transaction Management (DBMS Exp 10):
- *   setAutoCommit(false), commit(), rollback(), setAutoCommit(true)
- * - Atomic execution: meal and its items are logged together or rolled back completely
- * - Delegation to MealDAO and MealItemDAO
+ * Key concept: Transaction Management
+ * When we add a meal with multiple food items, we use a TRANSACTION.
+ * A transaction means: either ALL the database operations succeed together,
+ * or if anything fails, we ROLLBACK (undo) everything.
+ * This prevents partial data (e.g., meal exists but no food items).
  */
 public class MealService {
 
-    private final MealDAO mealDAO;
-    private final MealItemDAO mealItemDAO;
+    private MealDAO mealDAO;
+    private MealItemDAO mealItemDAO;
 
     public MealService() {
         this.mealDAO = new MealDAO();
@@ -41,22 +41,24 @@ public class MealService {
     }
 
     /**
-     * Adds a meal and all its associated meal items inside a single ACID transaction (DBMS Exp 10).
+     * Adds a meal along with all its food items using a database transaction.
      *
-     * <p>If all items are inserted successfully, the transaction is committed.
-     * If any error occurs (e.g., invalid foodId, database constraint failure),
-     * the transaction is rolled back completely so no partial meal records remain.</p>
+     * Steps:
+     * 1. Validate input
+     * 2. Get a connection and turn off auto-commit (start transaction)
+     * 3. Insert the meal
+     * 4. Insert all meal items
+     * 5. Commit - if everything went well
+     * 6. Rollback - if anything went wrong
      *
-     * @param meal Meal entity to insert
-     * @param items List of MealItem entities to associate with this meal
-     * @return Generated mealId of the committed meal
-     * @throws ValidationException if meal or items fail validation
-     * @throws DatabaseOperationException if transaction fails and is rolled back
+     * @param meal  The meal to insert
+     * @param items The list of food items for this meal
+     * @return The generated meal_id
      */
     public int addMealWithItems(Meal meal, ArrayList<MealItem> items)
             throws ValidationException, DatabaseOperationException {
 
-        // 1. Validation
+        // Step 1: Validate inputs before touching the database
         if (meal == null || meal.getUserId() == null) {
             throw new ValidationException("meal", "Meal and userId cannot be null.");
         }
@@ -64,63 +66,65 @@ public class MealService {
         ValidationUtil.requireNonNullDate(meal.getMealDate(), "mealDate");
 
         if (items == null || items.isEmpty()) {
-            throw new ValidationException("items", "A meal must contain at least one food item.");
+            throw new ValidationException("items", "A meal must have at least one food item.");
         }
 
         for (MealItem item : items) {
             if (item.getFoodId() == null || item.getFoodId() <= 0) {
-                throw new ValidationException("foodId", "Valid food ID is required for each item.");
+                throw new ValidationException("foodId", "Each item must have a valid food ID.");
             }
             if (item.getQuantity() == null || item.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new ValidationException("quantity", "Item quantity must be strictly greater than 0.");
+                throw new ValidationException("quantity", "Item quantity must be greater than 0.");
             }
         }
 
-        // 2. Transaction execution
+        // Step 2: Start the transaction
         Connection conn = null;
         try {
             conn = DBConnectionFactory.getConnection();
-            conn.setAutoCommit(false); // Begin transaction
+            conn.setAutoCommit(false); // This starts a transaction
 
-            // Step A: Insert parent meal
+            // Step 3: Insert the meal
             int mealId = mealDAO.addMeal(conn, meal);
 
-            // Step B: Insert child meal items
+            // Step 4: Insert each food item linked to this meal
             for (MealItem item : items) {
                 item.setMealId(mealId);
                 mealItemDAO.addMealItem(conn, item);
             }
 
-            // Step C: All operations succeeded => Commit transaction
+            // Step 5: Everything succeeded, commit the transaction
             conn.commit();
             return mealId;
 
         } catch (SQLException e) {
-            // Step D: Failure occurred => Rollback transaction
+            // Step 6: Something failed - rollback all changes
             if (conn != null) {
                 try {
                     conn.rollback();
                 } catch (SQLException rollbackEx) {
-                    // Suppress or log rollback exception
+                    // If rollback also fails, just print the error
+                    rollbackEx.printStackTrace();
                 }
             }
-            throw new DatabaseOperationException("Transaction failed: rolled back meal insertion", e);
+            throw new DatabaseOperationException("Transaction failed: meal insertion was rolled back.", e);
 
         } finally {
-            // Step E: Reset auto-commit and close connection
+            // Always reset auto-commit and close the connection
             if (conn != null) {
                 try {
                     conn.setAutoCommit(true);
                     conn.close();
-                } catch (SQLException closeEx) {
-                    // Close failure ignored
+                } catch (SQLException e) {
+                    e.printStackTrace();
                 }
             }
         }
     }
 
     /**
-     * Retrieves a meal by primary key ID.
+     * Gets a meal by its meal_id.
+     * Throws an exception if the meal is not found.
      */
     public Meal getMealById(int mealId) throws ResourceNotFoundException, DatabaseOperationException {
         Meal meal = mealDAO.getMealById(mealId);
@@ -131,14 +135,14 @@ public class MealService {
     }
 
     /**
-     * Retrieves all meals for a given user.
+     * Gets all meals for a user.
      */
     public ArrayList<Meal> getMealsByUserId(int userId) throws DatabaseOperationException {
         return mealDAO.getMealsByUserId(userId);
     }
 
     /**
-     * Retrieves meals logged by a user for a specific date.
+     * Gets meals for a user on a specific date.
      */
     public ArrayList<Meal> getMealsByUserIdAndDate(int userId, LocalDate date) throws DatabaseOperationException {
         ValidationUtil.requireNonNullDate(date, "mealDate");
@@ -146,7 +150,7 @@ public class MealService {
     }
 
     /**
-     * Retrieves all items associated with a meal.
+     * Gets all food items in a specific meal.
      */
     public ArrayList<MealItem> getItemsByMealId(int mealId) throws DatabaseOperationException {
         return mealItemDAO.getItemsByMealId(mealId);
@@ -166,20 +170,20 @@ public class MealService {
     }
 
     /**
-     * Deletes a meal (child items deleted via DB cascade constraint).
+     * Deletes a meal (child meal items are deleted automatically by the database cascade).
      */
     public boolean deleteMeal(int mealId) throws DatabaseOperationException {
         return mealDAO.deleteMeal(mealId);
     }
 
     /**
-     * Deletes a meal verifying that it belongs to the specified user.
+     * Deletes a meal, but first checks it belongs to the specified user.
      */
     public boolean deleteMeal(int mealId, int userId)
             throws ResourceNotFoundException, ValidationException, DatabaseOperationException {
         Meal meal = getMealById(mealId);
         if (meal.getUserId() == null || meal.getUserId() != userId) {
-            throw new ValidationException("userId", "Unauthorized: meal does not belong to user " + userId);
+            throw new ValidationException("userId", "This meal does not belong to user " + userId);
         }
         return deleteMeal(mealId);
     }

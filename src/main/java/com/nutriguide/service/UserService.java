@@ -12,12 +12,13 @@ import com.nutriguide.util.ValidationUtil;
 import java.util.ArrayList;
 
 /**
- * UserService: Handles user profile retrieval, update, and management.
+ * UserService - handles user profile operations like getting, updating, and deleting users.
+ * For login/register, it delegates to AuthenticationService.
  */
 public class UserService {
 
-    private final UserDAO userDAO;
-    private final AuthenticationService authenticationService;
+    private UserDAO userDAO;
+    private AuthenticationService authenticationService;
 
     public UserService() {
         this.userDAO = new UserDAO();
@@ -30,17 +31,7 @@ public class UserService {
     }
 
     /**
-     * Registers a new user through AuthenticationService.
-     *
-     * <p>Retained as a convenience delegation method so that external callers or test suites
-     * can register a user without needing a separate reference to AuthenticationService.
-     * Core registration, hashing, and credential validation logic reside in AuthenticationService.</p>
-     *
-     * @param user User profile details
-     * @param plainPassword Plaintext password to hash and persist
-     * @return Registered User entity with generated ID
-     * @throws ValidationException if input validation fails
-     * @throws DatabaseOperationException if database insertion fails
+     * Registers a new user. Delegates to AuthenticationService.
      */
     public User registerUser(User user, String plainPassword)
             throws ValidationException, DatabaseOperationException {
@@ -48,12 +39,8 @@ public class UserService {
     }
 
     /**
-     * Retrieves a user by ID, throwing ResourceNotFoundException if absent.
-     *
-     * @param userId Primary key ID
-     * @return User entity
-     * @throws ResourceNotFoundException if user does not exist
-     * @throws DatabaseOperationException if database access fails
+     * Gets a user by their user_id.
+     * Throws ResourceNotFoundException if the user doesn't exist.
      */
     public User getUserById(int userId) throws ResourceNotFoundException, DatabaseOperationException {
         if (userId <= 0) {
@@ -68,10 +55,8 @@ public class UserService {
     }
 
     /**
-     * Retrieves a user by email, throwing ResourceNotFoundException if absent.
-     *
-     * @param email User email
-     * @return User entity
+     * Gets a user by their email address.
+     * Throws ResourceNotFoundException if the user doesn't exist.
      */
     public User getUserByEmail(String email) throws ResourceNotFoundException, DatabaseOperationException {
         ValidationUtil.requireValidEmail(email);
@@ -84,13 +69,8 @@ public class UserService {
     }
 
     /**
-     * Updates an existing user's profile information.
-     *
-     * @param user User with updated attributes
-     * @return true if updated successfully
-     * @throws ValidationException if updated values are invalid
-     * @throws ResourceNotFoundException if user does not exist
-     * @throws DatabaseOperationException if database update fails
+     * Updates a user's profile information.
+     * Validates all fields before updating.
      */
     public boolean updateProfile(User user)
             throws ValidationException, ResourceNotFoundException, DatabaseOperationException {
@@ -99,7 +79,7 @@ public class UserService {
             throw new ValidationException("user", "User and User ID must not be null.");
         }
 
-        // Validate updated profile attributes
+        // Validate all profile fields
         ValidationUtil.requireNonBlank(user.getName(), "name");
         ValidationUtil.requireValidEmail(user.getEmail());
         ValidationUtil.requireValidAge(user.getAge());
@@ -108,12 +88,13 @@ public class UserService {
         ValidationUtil.requireNonBlank(user.getGender(), "gender");
         ValidationUtil.requireNonBlank(user.getActivityLevel(), "activityLevel");
 
-        // Verify user exists first
+        // Make sure the user actually exists in the database
         User existing = userDAO.getUserById(user.getUserId());
         if (existing == null) {
             throw new ResourceNotFoundException("User", user.getUserId());
         }
 
+        // If no password hash provided, keep the existing one
         if (user.getPasswordHash() == null) {
             user.setPasswordHash(existing.getPasswordHash());
         }
@@ -122,17 +103,8 @@ public class UserService {
     }
 
     /**
-     * Changes a user's password after verifying the current password (Java Lab Exp 1-2 & Security).
-     *
-     * @param userId User ID
-     * @param currentPassword Current plain password
-     * @param newPassword New plain password
-     * @param confirmPassword Confirmation of new password
-     * @return true if updated successfully
-     * @throws AuthenticationException if current password is incorrect
-     * @throws ValidationException if password constraints are violated
-     * @throws ResourceNotFoundException if user does not exist
-     * @throws DatabaseOperationException if database update fails
+     * Changes a user's password.
+     * Requires the current password for verification.
      */
     public boolean changePassword(int userId, String currentPassword, String newPassword, String confirmPassword)
             throws AuthenticationException, ValidationException, ResourceNotFoundException, DatabaseOperationException {
@@ -147,22 +119,25 @@ public class UserService {
             throw new ValidationException("newPassword", "New password is required.");
         }
         if (newPassword.length() < 6) {
-            throw new ValidationException("newPassword", "New password must be at least 6 characters long.");
+            throw new ValidationException("newPassword", "New password must be at least 6 characters.");
         }
         if (!newPassword.equals(confirmPassword)) {
             throw new ValidationException("confirmPassword", "New password and confirmation do not match.");
         }
 
+        // Find the user
         User user = userDAO.getUserById(userId);
         if (user == null) {
             throw new ResourceNotFoundException("User", userId);
         }
 
+        // Verify the current password is correct
         boolean matches = PasswordUtil.verifyPassword(currentPassword, user.getPasswordHash());
         if (!matches) {
             throw new AuthenticationException("Current password is incorrect.");
         }
 
+        // Hash the new password and save
         String newHash = PasswordUtil.hashPassword(newPassword);
         user.setPasswordHash(newHash);
 
@@ -170,12 +145,7 @@ public class UserService {
     }
 
     /**
-     * Deletes a user by ID.
-     *
-     * @param userId User ID
-     * @return true if deleted
-     * @throws ResourceNotFoundException if user does not exist
-     * @throws DatabaseOperationException if database deletion fails
+     * Deletes a user from the database.
      */
     public boolean deleteUser(int userId) throws ResourceNotFoundException, DatabaseOperationException {
         if (userId <= 0) {
@@ -191,7 +161,7 @@ public class UserService {
     }
 
     /**
-     * Retrieves all registered users.
+     * Gets all registered users.
      */
     public ArrayList<User> getAllUsers() throws DatabaseOperationException {
         return userDAO.getAllUsers();

@@ -427,9 +427,15 @@ public class NutriGuideApiClient {
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
                 byte[] bodyBytes = JsonUtil.toJson(requestBody).getBytes(StandardCharsets.UTF_8);
-                try (OutputStream os = conn.getOutputStream()) {
+                OutputStream os = null;
+                try {
+                    os = conn.getOutputStream();
                     os.write(bodyBytes);
                     os.flush();
+                } finally {
+                    if (os != null) {
+                        try { os.close(); } catch (IOException ignored) {}
+                    }
                 }
             }
 
@@ -443,10 +449,16 @@ public class NutriGuideApiClient {
             }
 
             StringBuilder sb = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            BufferedReader reader = null;
+            try {
+                reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
                 String line;
                 while ((line = reader.readLine()) != null) {
                     sb.append(line);
+                }
+            } finally {
+                if (reader != null) {
+                    try { reader.close(); } catch (IOException ignored) {}
                 }
             }
 
